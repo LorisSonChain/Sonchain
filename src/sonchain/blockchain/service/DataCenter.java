@@ -1,0 +1,481 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package sonchain.blockchain.service;
+
+import sonchain.blockchain.accounts.WalletManager;
+import sonchain.blockchain.base.CFileA;
+import sonchain.blockchain.base.CStrA;
+import sonchain.blockchain.base.HttpEasyService;
+import sonchain.blockchain.base.NodeService;
+
+import java.io.File;
+import java.math.BigInteger;
+import java.security.SignatureException;
+import java.util.*;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+
+import org.bouncycastle.math.ec.ECPoint;
+import org.bouncycastle.util.BigIntegers;
+import org.bouncycastle.util.encoders.Hex;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+
+import sonchain.blockchain.client.*;
+import sonchain.blockchain.config.BlockChainConfig;
+import sonchain.blockchain.consensus.SonChainPeerNode;
+import sonchain.blockchain.core.BlockChainImpl;
+import sonchain.blockchain.core.Genesis;
+import sonchain.blockchain.core.Transaction;
+import sonchain.blockchain.crypto.ECKey;
+import sonchain.blockchain.crypto.ECKey.ECDSASignature;
+import sonchain.blockchain.crypto.HashUtil;
+import sonchain.blockchain.data.SonChainHostInfo;
+import sonchain.blockchain.facade.SonChainImpl;
+import sonchain.blockchain.server.*;
+import lord.common.redis.JedisManager;
+import owchart.owlib.Base.CStr;
+import owchart.owlib.Base.RefObject;
+import redis.clients.jedis.JedisPool;
+
+/**
+ *
+ * @author GAIA_Todd
+ */
+public class DataCenter
+{
+	public static HashMap<String, SonChainServiceCT> m_clientsonchainServices = new HashMap<String, SonChainServiceCT>();
+	
+	public static BlockChainConfig m_config = new BlockChainConfig();
+
+	private static HashMap<String, HttpEasyService> m_httpEasyServices = new HashMap<String, HttpEasyService>();
+
+	public static HashMap<String, HttpEasyService> GetHttpGetServices() {
+		return m_httpEasyServices;
+	}
+
+	private static boolean m_isAppAlive = true;
+
+	public static boolean IsAppAlive() {
+		return DataCenter.m_isAppAlive;
+	}
+
+	public static void SetAppAlive(boolean value) {
+		DataCenter.m_isAppAlive = value;
+	}
+
+	public static int m_socketID = -1;
+
+	public static int GetsonchainRequestID()
+	{
+		return 9999;
+	}
+
+	private static boolean m_isFull;
+
+	public static boolean IsFull()
+	{
+		return m_isFull;
+	}
+
+	public static String GetAppPath()
+	{
+		return System.getProperty("user.dir");
+	}
+
+	public static String GetUserPath()
+	{
+		return System.getProperty("user.dir");
+	}
+
+	public static SonChainServiceSV m_serversonchainService = new SonChainServiceSV();
+
+	public static NeighborService m_neighborService;
+
+	public static NodeService m_nodeService;
+
+	public static NodeService GetNodeService() {
+		return DataCenter.m_nodeService;
+	}
+	
+	public static SonChainImpl m_sonChainImpl;
+	public static SonChainImpl getSonChainImpl()
+	{
+		return m_sonChainImpl;
+	}
+
+	private static JedisPool m_jedisPool = null;
+	
+	public static JedisPool GetJedisPool()
+	{
+		return DataCenter.m_jedisPool;
+	}
+	
+	public static SonChainPeerNode[] m_standbyPeerNodes = null; 
+	public static SonChainPeerNode[] GetStandbyPeerNodes()
+	{
+		return m_standbyPeerNodes;
+	}
+	
+	protected static void LoadConfigXml()
+	{
+		try
+		{
+			String filePath = GetAppPath() + "//ServerConfig.xml";
+			DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+			DocumentBuilder builder = factory.newDocumentBuilder();
+			Document xmldoc = (Document) builder.parse(new File(filePath));
+			Element root = xmldoc.getDocumentElement();
+			NodeList nodeList = root.getChildNodes();
+			int length = nodeList.getLength();
+			for (int i = 0; i < length; i++)
+			{
+				Node node = nodeList.item(i);
+				String nodeName = node.getNodeName();
+				if (nodeName.equals("redisConfig"))
+				{
+					NodeList nodeListSub = node.getChildNodes();
+					int lengthSub = nodeListSub.getLength();
+					for (int j = 0; j < lengthSub; j++)
+					{
+						Node nodeSub = nodeListSub.item(j);
+						String nodeNameSub = nodeSub.getNodeName();
+						if (nodeNameSub.equals("host"))
+						{
+							m_config.m_redisConfig.m_host = nodeSub.getTextContent();
+						}
+						else if (nodeNameSub.equals("maxIdle"))
+						{
+							m_config.m_redisConfig.m_maxIdle = CStrA.ConvertStrToInt(nodeSub.getTextContent());
+						}
+						else if (nodeNameSub.equals("maxTotal"))
+						{
+							m_config.m_redisConfig.m_maxTotal = CStrA.ConvertStrToInt(nodeSub.getTextContent());
+						}
+						else if (nodeNameSub.equals("maxWaitMillis"))
+						{
+							m_config.m_redisConfig.m_maxWaitMillis = CStrA.ConvertStrToInt(nodeSub.getTextContent());
+						}
+						else if (nodeNameSub.equals("port"))
+						{
+							m_config.m_redisConfig.m_port = CStrA.ConvertStrToInt(nodeSub.getTextContent());
+						}
+						else if (nodeNameSub.equals("softMinEvictableIdleTimeMillis"))
+						{
+							m_config.m_redisConfig.m_softMinEvictableIdleTimeMillis = CStrA
+									.ConvertStrToInt(nodeSub.getTextContent());
+						}
+						else if (nodeNameSub.equals("testOnBorrow"))
+						{
+							m_config.m_redisConfig.m_testOnBorrow = CStrA.ConvertStrToBoolean(nodeSub.getTextContent());
+						}
+						else if (nodeNameSub.equals("password"))
+						{
+							m_config.m_redisConfig.m_password = nodeSub.getTextContent();
+						}
+					}
+				}
+				else if (nodeName.equals("clearcache"))
+				{
+					m_config.m_clearCache = CStrA.ConvertStrToBoolean(node.getTextContent());
+				}
+//				else if (nodeName.equals("localhost"))
+//				{
+//					String localHost = node.getTextContent();
+//					if (localHost.length() > 0)
+//					{
+//						String[] sunStrs = localHost.split("[:]");
+//						m_config.m_localHost = sunStrs[0];
+//						m_config.m_localPort = CStr.ConvertStrToInt(sunStrs[1]);
+//					}
+//				}
+				else if(nodeName.equals("m_databaseVersion")){
+					m_config.m_databaseVersion = node.getTextContent();
+				}
+				else if(nodeName.equals("m_projectVersion")){
+					m_config.m_projectVersion = node.getTextContent();
+				}
+				else if(nodeName.equals("m_datebaseDir")){
+					m_config.m_datebaseDir = node.getTextContent();
+				}
+				else if(nodeName.equals("m_nodewalletaddress")){
+					m_config.m_nodeWalletAddress = node.getTextContent();
+				}
+				else if(nodeName.equals("m_genesisfilepath")){
+					m_config.m_genesisFilePath = node.getTextContent();
+				}
+				else if(nodeName.equals("m_blockchainconfigname")){
+					m_config.m_blockchainConfigName = node.getTextContent();
+				}
+				else if(nodeName.equals("m_roothashstart")){
+					m_config.m_rootHashStart = node.getTextContent();
+				}
+				else if (nodeName.equals("m_transactionapprovetimeout"))
+				{
+					m_config.m_transactionApproveTimeout = CStrA
+							.ConvertStrToInt(node.getTextContent());
+				}
+				else if(nodeName.equals("m_cryptoprovidername")){
+					m_config.m_cryptoProviderName = node.getTextContent();
+				}
+				else if(nodeName.equals("m_cryptohashalg256")){
+					m_config.m_cryptoHashAlg256 = node.getTextContent();
+				}
+				else if(nodeName.equals("m_cryptohashalg512")){
+					m_config.m_cryptoHashAlg512 = node.getTextContent();
+				}
+				else if(nodeName.equals("m_keyvalueDatasource")){
+					m_config.m_keyvalueDatasource = node.getTextContent();
+				}
+				else if (nodeName.equals("m_cachemaxstatebloomsize"))
+				{
+					m_config.m_cacheMaxStateBloomSize = CStrA
+							.ConvertStrToInt(node.getTextContent());
+				}
+				else if (nodeName.equals("m_recordblocks"))
+				{
+					m_config.m_recordBlocks = CStrA.ConvertStrToBoolean(node.getTextContent());
+				}
+				else if(nodeName.equals("m_dumpdir")){
+					m_config.m_dumpDir = node.getTextContent();
+				}
+				else if (nodeName.equals("m_transactionoutdatedthreshold"))
+				{
+					m_config.m_transactionOutdatedThreshold = CStrA
+							.ConvertStrToInt(node.getTextContent());
+				}
+				else if (nodeName.equals("m_cacheflushwritecachesize"))
+				{
+					m_config.m_cacheFlushWriteCacheSize = CStrA
+							.ConvertStrToInt(node.getTextContent());
+				}
+				else if (nodeName.equals("m_cacheFlushBlocks"))
+				{
+					m_config.m_cacheFlushBlocks = CStrA
+							.ConvertStrToInt(node.getTextContent());
+				}
+				else if (nodeName.equals("m_cacheflushshortsyncflush"))
+				{
+					m_config.m_cacheFlushShortSyncFlush 
+						= CStrA.ConvertStrToBoolean(node.getTextContent());
+				}
+				else if (nodeName.equals("m_cachestatecachesize"))
+				{
+					m_config.m_cacheStateCacheSize = CStrA
+							.ConvertStrToInt(node.getTextContent());
+				}
+				else if (nodeName.equals("m_cachestatecachesize"))
+				{
+					m_config.m_cacheStateCacheSize = CStrA
+							.ConvertStrToInt(node.getTextContent());
+				}
+				else if (nodeName.equals("m_blocksloader"))
+				{
+					m_config.m_blocksLoader = node.getTextContent();
+				}
+				else if (nodeName.equals("m_blocksformat"))
+				{
+					m_config.m_blocksFormat = node.getTextContent();
+				}
+				else if (nodeName.equals("m_nodewalletaddress"))
+				{
+					m_config.m_nodeWalletAddress = node.getTextContent();
+				}
+				else if (nodeName.equals("m_databasereset"))
+				{
+					m_config.m_databaseReset 
+						= CStrA.ConvertStrToBoolean(node.getTextContent());
+				}
+				else if (nodeName.equals("m_databaseresetblock"))
+				{
+					m_config.m_databaseResetBlock = CStrA
+							.ConvertStrToInt(node.getTextContent());
+				}
+				else if (nodeName.equals("m_cacheblockqueuesize"))
+				{
+					m_config.m_cacheBlockQueueSize = CStrA
+							.ConvertStrToInt(node.getTextContent());
+				}
+				else if (nodeName.equals("m_syncfastenabled"))
+				{
+					m_config.m_syncFastEnabled 
+						= CStrA.ConvertStrToBoolean(node.getTextContent());
+				}
+				else if (nodeName.equals("m_syncenabled"))
+				{
+					m_config.m_syncEnabled 
+						= CStrA.ConvertStrToBoolean(node.getTextContent());
+				}
+				else if (nodeName.equals("m_syncfastpivotblockhash"))
+				{
+					m_config.m_syncFastPivotBlockHash = node.getTextContent();
+				}
+				else if (nodeName.equals("m_startExecutorDate"))
+				{
+					m_config.m_startExecutorDate = node.getTextContent();
+				}
+				else if (nodeName.equals("m_localhost"))
+				{
+					m_config.m_localHost = node.getTextContent();
+				}
+				else if (nodeName.equals("m_localport"))
+				{
+					m_config.m_localPort = CStrA.ConvertStrToInt(node.getTextContent());
+				}
+				else if (nodeName.equals("m_localnodeprivatekey"))
+				{
+					m_config.m_localNodePrivateKey = node.getTextContent();
+				}
+				else if (nodeName.equals("m_maxtransactionperblock"))
+				{
+					m_config.m_maxTransactionsPerBlock = CStrA.ConvertStrToInt(node.getTextContent());
+				}
+			}
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
+	}
+	
+	protected static void LoadStandbyPeerInfos(){
+
+		try
+		{
+			String filePath = GetAppPath() + "//StandbyPeerInfos.txt";
+			RefObject<String> refContent = new RefObject<String>("");
+			String content = "";
+			CFileA.Read(filePath, refContent);
+			content = refContent.argvalue;
+			if(content == null || content.length() == 0){
+				return;
+			}
+			ArrayList<String> retLines = new ArrayList<String> ();
+			CStrA.Split(retLines, content, "\r\n", false);
+			if(retLines == null || retLines.size() == 0){
+				return;
+			}
+			int size = retLines.size();
+			m_standbyPeerNodes = new SonChainPeerNode[size];
+			for(int i = 0; i < size; i ++){
+				SonChainPeerNode peerInfo = SonChainPeerNode.fromString(retLines.get(i));
+				m_standbyPeerNodes[i] = peerInfo;				
+			}
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
+	}
+	
+	public static SonChainServiceCT getOneSonChainServiceCT(String key)
+	{
+		return DataCenter.m_clientsonchainServices.get(key);
+	}
+	
+	public static SonChainServiceCT getAnyOneSonChainServiceCT()
+	{
+		return getOneSonChainServiceCT("");
+	}
+
+	public static void StartService(String fileName)
+	{
+		LoadConfigXml();
+		LoadStandbyPeerInfos();
+		m_jedisPool = JedisManager.CreateJedisPool(m_config.m_redisConfig);
+		/**
+		//BlockChain1.LoadBlockChain();
+		String content = "";
+		RefObject<String> refContent = new RefObject<String>(content);
+		if (m_config.m_clearCache)
+		{
+			CFileA.RemoveFile(DataCenter.GetUserPath() + "\\fullservers.txt");
+		}
+		Random rd = new Random();
+		m_isFull = m_config.m_isFull;
+		if (!m_isFull)
+		{
+			m_serversonchainService.SetPort(10000 + rd.nextInt() % 10000);
+		}
+		m_httpEasyServices.put("blockwalletservice", new BlockWalletService());
+		BaseServiceSV.AddService(m_serversonchainService);
+		int socketIDServer = BaseServiceSV.StartServer(m_serversonchainService.GetPort());
+		m_serversonchainService.SetSocketID(socketIDServer);
+		m_neighborService = new NeighborService();
+		m_neighborService.SetSocketID(socketIDServer);
+		String fullServersPath = DataCenter.GetAppPath() + "\\fullservers.txt";
+		ArrayList<SonChainHostInfo> hostInfos = new ArrayList<SonChainHostInfo>();
+		if (CFileA.IsFileExist(fullServersPath))
+		{
+			CFileA.Read(fullServersPath, refContent);
+			if (content.length() > 0)
+			{
+				String[] subStrs = content.split("[;]");
+				int subStrsSize = subStrs.length;
+				for (int s = 0; s < subStrsSize; s++)
+				{
+					SonChainHostInfo gsi = new SonChainHostInfo();
+					String[] sunStrs = subStrs[s].split("[:]");
+					gsi.m_ip = sunStrs[0];
+					gsi.m_serverPort = CStr.ConvertStrToInt(sunStrs[1]);
+					gsi.m_type = 1;
+					hostInfos.add(gsi);
+				}
+			}
+		}
+		else
+		{
+			if (DataCenter.m_config.m_defaultHost.length() > 0)
+			{
+				SonChainHostInfo defaultHostInfo = new SonChainHostInfo();
+				defaultHostInfo.m_ip = DataCenter.m_config.m_defaultHost;
+				defaultHostInfo.m_serverPort = DataCenter.m_config.m_defaultPort;
+				hostInfos.add(defaultHostInfo);
+			}
+		}
+		int hostInfosSize = hostInfos.size();
+		if (DataCenter.IsFull() && hostInfosSize == 0)
+		{
+			SonChainHostInfo defaultHostInfo = new SonChainHostInfo();
+			defaultHostInfo.m_ip = "127.0.0.1";
+			defaultHostInfo.m_serverPort = 16666;
+			hostInfos.add(defaultHostInfo);
+		}
+		if (hostInfosSize > 0)
+		{
+			while (true)
+			{
+				SonChainHostInfo hostInfo = hostInfos.get(rd.nextInt() % hostInfosSize);
+				m_socketID = BaseServiceCT.Connect(hostInfo.m_ip, hostInfo.m_serverPort);
+				if (m_socketID != -1)
+				{
+					String key = hostInfo.toString();
+					SonChainServiceCT clientsonchainService = new SonChainServiceCT();
+					clientsonchainService.setSonChainHostInfo(hostInfo);
+					DataCenter.m_clientsonchainServices.put(key, clientsonchainService);
+					BaseServiceCT.AddService(clientsonchainService);
+					clientsonchainService.SetToServer(true);
+					clientsonchainService.SetConnected(true);
+					clientsonchainService.SetSocketID(m_socketID);
+					clientsonchainService.Enter();
+					clientsonchainService.SyncBlockChain();
+					return;
+				}
+			}
+		}**/
+		m_nodeService = new NodeService(fileName);
+		m_nodeService.SetPort(m_config.m_localPort);
+		m_sonChainImpl = new SonChainImpl();
+		try {
+			m_nodeService.Start();
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+	}
+}
