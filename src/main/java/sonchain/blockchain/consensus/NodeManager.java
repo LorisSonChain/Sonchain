@@ -24,7 +24,7 @@ public class NodeManager {
     //private List<SonChainPeerNode> m_connectedPeers = new ArrayList<SonChainPeerNode>();
     private HashMap<String, SonChainServicePeer> m_clientsonchainServices = new HashMap<String, SonChainServicePeer>();
     private SonChainServiceSV m_serversonchainService = new SonChainServiceSV();	
-    private List<SonChainPeerNode> m_remotePeerNodes = null; 
+    private List<SonChainProducerNode> m_remotePeerNodes = null; 
 	public static final Logger m_logger = Logger.getLogger(NodeManager.class);
     
     public NodeManager(){
@@ -44,7 +44,7 @@ public class NodeManager {
 		int count = m_remotePeerNodes.size();
 		if(count > 0){
 			for(int i = 0; i < count; i++){
-				SonChainPeerNode peerNode = m_remotePeerNodes.get(i);
+				SonChainProducerNode peerNode = m_remotePeerNodes.get(i);
 				int socketID = SonChainServicePeer.Connect(peerNode.getHost(), peerNode.getPort());
 				if (socketID != -1)
 				{

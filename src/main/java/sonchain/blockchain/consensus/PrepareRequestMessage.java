@@ -20,7 +20,7 @@ public class PrepareRequestMessage extends BaseMessage{
 	public static final Logger m_logger = Logger.getLogger(PrepareRequestMessage.class);
 	public int m_viewNumber = 0;
 	public BigInteger m_nonce = BigInteger.ZERO;
-	public byte[] m_nextConsensus = null;
+	public String m_nextConsensus = null;
 	public List<Transaction> m_lstTransaction = new ArrayList<Transaction>();
 	public Block m_block = null;
 	public byte[] m_signature = null;
@@ -29,7 +29,7 @@ public class PrepareRequestMessage extends BaseMessage{
 		super(encoded);
 	}
 
-	public PrepareRequestMessage(BigInteger nonce, byte[] nextConsensus, 
+	public PrepareRequestMessage(BigInteger nonce, String nextConsensus, 
 			List<Transaction> lstTransaction, Block block, byte[] signature, int viewNumber) {
 		m_nonce = nonce;
 		m_nextConsensus = nextConsensus;
@@ -47,16 +47,19 @@ public class PrepareRequestMessage extends BaseMessage{
 		RLPList paramsList = (RLPList) RLP.decode2(m_encoded).get(0);
 		byte[] nonceBytes = ((RLPList) paramsList.get(0)).getRLPData();
 		m_nonce = new BigInteger(1, nonceBytes);
-		m_nextConsensus = ((RLPList) paramsList.get(1)).getRLPData();
+		//TODO
+		//m_nextConsensus = ((RLPList) paramsList.get(1)).getRLPData();
 		byte[] blockBytes = ((RLPList) paramsList.get(2)).getRLPData();
-		m_block = new Block(blockBytes);
+		//TODO
+		//m_block = new Block(blockBytes);
 		m_signature = ((RLPList) paramsList.get(3)).getRLPData();	
         byte[] viewNumberBytes = ((RLPList) paramsList.get(4)).getRLPData();
         m_viewNumber = viewNumberBytes == null ? 0 : (new BigInteger(1, viewNumberBytes)).intValue();	
 		m_lstTransaction = new ArrayList<Transaction>();
 		for (int i = 5; i < paramsList.size(); ++i) {
 			RLPList rlpData = ((RLPList) paramsList.get(i));
-			m_lstTransaction.add(new Transaction(rlpData.getRLPData()));
+			//TODO
+			//m_lstTransaction.add(new Transaction(rlpData.getRLPData()));
 		}
 		m_parsed = true;
 	}
@@ -66,7 +69,8 @@ public class PrepareRequestMessage extends BaseMessage{
 		byte[] blockBytes = m_block.getEncoded();
 		List<byte[]> body = new ArrayList<byte[]>();
 		body.add(nonceBytes);
-		body.add(m_nextConsensus);
+		//TODO
+		//body.add(m_nextConsensus);
 		body.add(blockBytes);
 		body.add(m_signature);
         byte[] viewNumberBytes = RLP.encodeBigInteger(BigInteger.valueOf(m_viewNumber));
@@ -101,7 +105,7 @@ public class PrepareRequestMessage extends BaseMessage{
 		parse();
 		StringBuilder payload = new StringBuilder();
 		payload.append("nonce= ").append(m_nonce).append(" )");
-		payload.append("nextConsensus= ").append(ByteUtil.toHexString(m_nextConsensus)).append(" )");
+		payload.append("nextConsensus= ").append(m_nextConsensus).append(" )");
 		payload.append("signature= ").append(ByteUtil.toHexString(m_signature)).append(" )");
 		payload.append("block= ").append(m_block.toString()).append(" )");
 		payload.append("viewNumber= ").append(m_viewNumber).append(" )");

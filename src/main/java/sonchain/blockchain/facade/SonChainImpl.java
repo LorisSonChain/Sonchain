@@ -10,11 +10,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.log4j.Logger;
@@ -23,8 +19,7 @@ import org.bouncycastle.util.encoders.Hex;
 import sonchain.blockchain.config.BlockChainConfig;
 import sonchain.blockchain.config.CommonConfig;
 import sonchain.blockchain.consensus.ConsensusService;
-import sonchain.blockchain.consensus.NodeManager;
-import sonchain.blockchain.consensus.SonChainPeerNode;
+import sonchain.blockchain.consensus.SonChainProducerNode;
 import sonchain.blockchain.core.Block;
 import sonchain.blockchain.core.BlockChain;
 import sonchain.blockchain.core.BlockChainImpl;
@@ -50,6 +45,7 @@ import sonchain.blockchain.net.submit.TransactionTask;
 import sonchain.blockchain.service.DataCenter;
 import sonchain.blockchain.sync.SyncManager;
 import sonchain.blockchain.util.ByteUtil;
+import sonchain.blockchain.util.Numeric;
 import sonchain.blockchain.vm.program.invoke.ProgramInvokeFactory;
 import sonchain.blockchain.core.Repository;
 
@@ -130,8 +126,10 @@ public class SonChainImpl implements SonChain {
         Block bestPendingState = ((PendingStateImpl) m_pendingState).getBestBlock();
         m_logger.debug("getNewBlockForMining best blocks: PendingState: " + bestPendingState.getShortDescr() +
                 ", Blockchain: " + bestBlockchain.getShortDescr());
-        Block newMiningBlock = m_blockChain.createNewBlock(bestPendingState, getAllPendingTransactions());
-        return newMiningBlock;
+        //TODO
+        //Block newMiningBlock = m_blockChain.createNewBlock(bestPendingState, getAllPendingTransactions());
+        //return newMiningBlock;
+        return null;
     }
     
     public int getTransactionStatue(String hash){
@@ -169,7 +167,7 @@ public class SonChainImpl implements SonChain {
     }
     
     @Override
-    public void connect(SonChainPeerNode node) {
+    public void connect(SonChainProducerNode node) {
         connect(node.getHost(), node.getPort(), Hex.toHexString(node.getId()));
     }
     
@@ -213,12 +211,14 @@ public class SonChainImpl implements SonChain {
             public void onBlock(BlockSummary blockSummary) {
         		m_logger.debug("onBlock BlockInfo :" 
         				+ blockSummary.getBlock().toString());
-                if (blockSummary.getBlock().getNumber() != 0L) {
+                if (blockSummary.getBlock().getBlockNumber() != 0L) {
                 	List<TransactionReceipt> trans = blockSummary.getReceipts();
                 	int size = trans.size();
                 	for(int i = 0 ; i < size; i ++){
                 		TransactionReceipt transactionReceipt = trans.get(i);
-                		byte[] hash = transactionReceipt.getTransaction().getHash();
+                		  //TODO
+                		//byte[] hash = transactionReceipt.getTransaction().getHash();
+                		byte[] hash = null;
                 		String strHash = Hex.toHexString(hash);
                 		if( transactionReceipt.isSuccessful()){
                 			m_transactionReceiptStatus.put(strHash, TransactionReceiptStatus.Success);
@@ -361,9 +361,10 @@ public class SonChainImpl implements SonChain {
 
     @Override
     public TransactionReceipt callConstant(Transaction tx, Block block) {
-        if (tx.getSignature() == null) {
-            tx.sign(ECKey.fromPrivate(new byte[32]));
-        }
+        //TODO
+        //if (tx.getSignature() == null) {
+        //    tx.sign(ECKey.fromPrivate(new byte[32]));
+        //}
         return callConstantImpl(tx, block).getReceipt();
     }
 
@@ -375,20 +376,21 @@ public class SonChainImpl implements SonChain {
 
     private sonchain.blockchain.core.TransactionExecutor callConstantImpl(Transaction tx, Block block) {
         Repository repository = ((Repository) m_worldManager.getRepository())
-                .getSnapshotTo(block.getStateRoot())
+                .getSnapshotTo(Numeric.hexStringToByteArray(block.getStateRoot()))
                 .startTracking();
         try {
-        	sonchain.blockchain.core.TransactionExecutor executor = 
-        			new sonchain.blockchain.core.TransactionExecutor
-                    (tx, block.getMinedBy(), repository, m_worldManager.getBlockStore(),
-                    		m_programInvokeFactory, block, new SonChainListenerAdapter())
-                    .withCommonConfig(m_commonConfig)
-                    .setLocalCall(true);
-            executor.init();
-            executor.execute();
-            executor.go();
-            executor.finalization();
-            return executor;
+//        	sonchain.blockchain.core.TransactionExecutor executor = 
+//        			new sonchain.blockchain.core.TransactionExecutor
+//                    (tx, block.getProducer(), repository, m_worldManager.getBlockStore(),
+//                    		m_programInvokeFactory, block, new SonChainListenerAdapter())
+//                    .withCommonConfig(m_commonConfig)
+//                    .setLocalCall(true);
+//            executor.init();
+//            executor.execute();
+//            executor.go();
+//            executor.finalization();
+//            return executor;
+        	return null;
         } finally {
             repository.rollback();
         }
@@ -401,7 +403,7 @@ public class SonChainImpl implements SonChain {
 
     @Override
     public sonchain.blockchain.facade.Repository getLastRepositorySnapshot() {
-        return getSnapshotTo(getBlockChain().getBestBlock().getStateRoot());
+        return getSnapshotTo(Numeric.hexStringToByteArray(getBlockChain().getBestBlock().getStateRoot()));
     }
 
     @Override
@@ -447,7 +449,7 @@ public class SonChainImpl implements SonChain {
     public Integer getChainIdForNextBlock() {
         BlockChainConfig nextBlockConfig = 
         		(BlockChainConfig) DataCenter.m_config.getConfigForBlock(getBlockChain()
-		.getBestBlock().getNumber() + 1);
+		.getBestBlock().getBlockNumber() + 1);
         return 0;
         //return nextBlockConfig.GetChainId();
     }

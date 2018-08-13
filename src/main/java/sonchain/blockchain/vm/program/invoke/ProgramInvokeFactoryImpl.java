@@ -3,6 +3,7 @@ package sonchain.blockchain.vm.program.invoke;
 import org.bouncycastle.util.encoders.Hex;
 
 import sonchain.blockchain.core.Block;
+import sonchain.blockchain.core.BlockTimestamp;
 import sonchain.blockchain.core.Repository;
 import sonchain.blockchain.core.Transaction;
 import sonchain.blockchain.db.BlockStore;
@@ -27,11 +28,11 @@ public class ProgramInvokeFactoryImpl implements ProgramInvokeFactory {
 
         /***         ORIGIN op       ***/
         // YP: This is the sender of original transaction; it is never a contract.
-        byte[] origin = tx.getSender();
+        byte[] origin = tx.getSenderAddress();
 
         /***         CALLER op       ***/
         // YP: This is the address of the account that is directly responsible for this execution.
-        byte[] caller = tx.getSender();
+        byte[] caller = tx.getSenderAddress();
 
         /***         BALANCE op       ***/
         byte[] balance = repository.getBalance(address).toByteArray();
@@ -42,19 +43,21 @@ public class ProgramInvokeFactoryImpl implements ProgramInvokeFactory {
         /***     CALLDATALOAD  op   ***/
         /***     CALLDATACOPY  op   ***/
         /***     CALLDATASIZE  op   ***/
-        byte[] data = tx.isContractCreation() ? ByteUtil.EMPTY_BYTE_ARRAY : nullToEmpty(tx.getData());
+        //TODO
+        //byte[] data = tx.isContractCreation() ? ByteUtil.EMPTY_BYTE_ARRAY : nullToEmpty(tx.getData());
+        byte[] data = tx.isContractCreation() ? ByteUtil.EMPTY_BYTE_ARRAY : nullToEmpty(tx.getEncoded());
 
         /***    PREVHASH  op  ***/
-        byte[] lastHash = block.getParentHash();
+        String lastHash = block.getParentHash();
 
-        /***   MinedBy  op ***/
-        byte[] minedby = block.getMinedBy();
+        /***   Producer  op ***/
+        String producer = block.getProducer();
 
         /*** TIMESTAMP  op  ***/
-        long timestamp = block.getTimestamp();
+        BlockTimestamp timestamp = block.getTimestamp();
 
         /*** NUMBER  op  ***/
-        long number = block.getNumber();
+        long number = block.getBlockNumber();
 
         if (m_logger.isInfoEnabled()) {
         	m_logger.info(String.format("Top level call: \n" +
@@ -75,14 +78,14 @@ public class ProgramInvokeFactoryImpl implements ProgramInvokeFactory {
                     ByteUtil.bytesToBigInteger(balance),
                     ByteUtil.bytesToBigInteger(callValue),
                     Hex.toHexString(data),
-                    Hex.toHexString(lastHash),
-                    Hex.toHexString(minedby),
+                    lastHash,
+                    producer,
                     timestamp,
                     number));
         }
 
         return new ProgramInvokeImpl(address, origin, caller, balance, callValue, data,
-                lastHash, minedby, timestamp, number, repository, blockStore);
+                lastHash, producer, timestamp, number, repository, blockStore);
     }
 
 //    /**

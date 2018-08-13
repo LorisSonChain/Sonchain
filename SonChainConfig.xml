@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<SettlementConfig>
+  <clearcache>false</clearcache>
+  <!--redis连接配置  -->
+  <redisConfig>
+    <host>127.0.0.1</host>
+    <maxIdle>10</maxIdle>
+    <maxTotal>1024</maxTotal>
+    <maxWaitMillis>500</maxWaitMillis>
+    <port>6379</port>
+    <softMinEvictableIdleTimeMillis>10000</softMinEvictableIdleTimeMillis>
+    <testOnBorrow>false</testOnBorrow>
+    <password>ysh2013</password>
+  </redisConfig>
+  <m_databaseVersion>1</m_databaseVersion>
+  <m_projectVersion>1.0.0</m_projectVersion>
+  <m_datebaseDir>D:\git\GintechBlockchainPlatform\Java\GintechBlockchainPlatform\data</m_datebaseDir>
+  <m_nodewalletaddress>0x0000000000000000000000000000000000000000</m_nodewalletaddress>
+  <m_genesisfilepath>D:\git\GintechBlockchainPlatform\Java\GintechBlockchainPlatform\genesis\frontier.json</m_genesisfilepath>
+  <m_blockchainconfigname></m_blockchainconfigname>
+  <m_roothashstart></m_roothashstart>
+  <m_transactionapprovetimeout>10</m_transactionapprovetimeout>
+  <m_cryptoprovidername></m_cryptoprovidername>
+  <m_cryptohashalg256></m_cryptohashalg256>
+  <m_cryptohashalg512></m_cryptohashalg512>
+  <m_cachemaxstatebloomsize>128</m_cachemaxstatebloomsize>
+  <m_recordblocks>true</m_recordblocks>
+  <m_dumpdir>dump</m_dumpdir>
+  <m_transactionoutdatedthreshold>10</m_transactionoutdatedthreshold>
+  <m_cacheflushwritecachesize>64</m_cacheflushwritecachesize>
+  <m_cacheflushblocks>0</m_cacheflushblocks>
+  <m_cacheflushshortsyncflush>true</m_cacheflushshortsyncflush>
+  <m_cachestatecachesize>256</m_cachestatecachesize>
+  <m_blocksloader></m_blocksloader>
+  <m_blocksformat>rlp</m_blocksformat>
+  <m_databasereset>false</m_databasereset>
+  <m_databaseresetblock>0</m_databaseresetblock>
+  <m_cacheblockqueuesize>32</m_cacheblockqueuesize>
+  <m_syncfastenabled>false</m_syncfastenabled>
+  <m_syncenabled>false</m_syncenabled>
+  <m_syncfastpivotblockhash></m_syncfastpivotblockhash>
+  <m_startExecutorDate>2018-06-11 13:31:00</m_startExecutorDate>
+  <m_localhost>192.168.86.125</m_localhost>
+  <m_localport>16666</m_localport>
+  <m_privatekey>e05005542e49e87ecac787dbcf5d38d940b65bb9dcbdf0ed59d56c12dfe9a42e</m_privatekey>
+  <m_maxtransactionperblock>500</m_maxtransactionperblock>
+  <m_system_account_name>sonchain</m_system_account_name>
+</SettlementConfig>

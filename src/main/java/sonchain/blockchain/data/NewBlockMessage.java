@@ -29,7 +29,8 @@ public class NewBlockMessage extends BaseMessage{
 		}
 		RLPList paramsList = (RLPList) RLP.decode2(m_encoded).get(0);
 		RLPList blockRLP = ((RLPList) paramsList.get(0));
-		m_block = new Block(blockRLP.getRLPData());
+        //TODO
+		//m_block = new Block(blockRLP.getRLPData());
 		m_parsed = true;
 	}
 
@@ -52,7 +53,7 @@ public class NewBlockMessage extends BaseMessage{
 		parse();
 
 		String hash = this.getBlock().getShortHash();
-		long number = this.getBlock().getNumber();
+		long number = this.getBlock().getBlockNumber();
 		return "NEW_BLOCK [ number: " + number + " hash:" + hash + " ]";
 	}
 }

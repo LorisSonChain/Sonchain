@@ -12,7 +12,6 @@ public class SpongyCastleProvider {
 		private static final Provider INSTANCE;
 		static {
 			Provider p = Security.getProvider("SC");
-
 			if(p != null)
 			{
 				INSTANCE = p;
@@ -21,9 +20,8 @@ public class SpongyCastleProvider {
 			{
 				INSTANCE = new BouncyCastleProvider();
 			}
-
-			INSTANCE.put("MessageDigest.GTC-KECCAK-256", "sonchain.blockchain.crypto.cryptohash.Keccak256");
-			INSTANCE.put("MessageDigest.GTC-KECCAK-512", "sonchain.blockchain.crypto.cryptohash.Keccak512");
+			//INSTANCE.put("MessageDigest.GTC-KECCAK-256", "sonchain.blockchain.crypto.cryptohash.Keccak256");
+			//INSTANCE.put("MessageDigest.GTC-KECCAK-512", "sonchain.blockchain.crypto.cryptohash.Keccak512");
 		}
 	}
 

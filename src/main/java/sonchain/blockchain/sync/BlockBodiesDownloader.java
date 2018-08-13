@@ -7,7 +7,7 @@ import java.util.List;
 import org.apache.log4j.Logger;
 
 import sonchain.blockchain.config.CommonConfig;
-import sonchain.blockchain.consensus.SonChainPeerNode;
+import sonchain.blockchain.consensus.SonChainProducerNode;
 import sonchain.blockchain.core.Block;
 import sonchain.blockchain.core.BlockHeader;
 import sonchain.blockchain.core.BlockHeaderWrapper;
@@ -28,8 +28,7 @@ public class BlockBodiesDownloader extends BlockDownloader {
     
     private IndexedBlockStore m_blockStore
     	= (IndexedBlockStore)DataCenter.getSonChainImpl().getBlockChain().getBlockStore();
-    private DataSourceArray<BlockHeader> m_headerStore 
-    	= CommonConfig.getDefault().getHeaderSource();    
+    private DataSourceArray<BlockHeader> m_headerStore  = CommonConfig.getDefault().getHeaderSource();    
     private DbFlushManager m_dbFlushManager = CommonConfig.getDefault().getDbFlushManager();
     private Thread m_headersThread = null;
     private int m_downloadCnt = 0;
@@ -63,11 +62,10 @@ public class BlockBodiesDownloader extends BlockDownloader {
             for (int i = 0; i < 10000 - m_syncQueue.getHeadersCount() 
             		&& m_curBlockIdx < m_headerStore.size(); i++) {
                 BlockHeader header = m_headerStore.get(m_curBlockIdx++);
-                wrappers.add(new BlockHeaderWrapper(header, new SonChainPeerNode()));
+                wrappers.add(new BlockHeaderWrapper(header, new SonChainProducerNode()));
 
                 // Skip bodies download for blocks with empty body
-                boolean emptyBody = FastByteComparisons.equal(header.getTxTrieRoot(), 
-                		HashUtil.EMPTY_TRIE_HASH);
+                boolean emptyBody = header.getMerkleTxRoot().length() == 0 ? true: false;
                 if (emptyBody){
                 	emptyBodyHeaders.add(header);
                 }
@@ -97,11 +95,12 @@ public class BlockBodiesDownloader extends BlockDownloader {
 
         List<Block> finishedBlocks = new ArrayList<>();
         for (BlockHeader header : blockHeaders) {
-            Block block = new Block.Builder()
-                    .withHeader(header)
-                    .withBody(EMPTY_BODY)
-                    .create();
-            finishedBlocks.add(block);
+        	//TODO
+//            Block block = new Block.Builder()
+//                    .withHeader(header)
+//                    .withBody(EMPTY_BODY)
+//                    .create();
+//            finishedBlocks.add(block);
         }
 
         List<Block> startTrimmedBlocks = m_syncQueue.addBlocks(finishedBlocks);

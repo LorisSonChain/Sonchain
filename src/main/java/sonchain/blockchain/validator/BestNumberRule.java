@@ -18,11 +18,11 @@ public class BestNumberRule extends DependentBlockHeaderRule {
     @Override
     public boolean validate(BlockHeader header, BlockHeader bestHeader) {
         m_errors.clear();
-        long diff = header.getNumber() - bestHeader.getNumber();
+        long diff = header.getBlockNumber() - bestHeader.getBlockNumber();
         if (diff > -1 * BEST_NUMBER_DIFF_LIMIT) {
         	m_errors.add(String.format(
                     "#%d: (header.getNumber() - bestHeader.getNumber()) <= BEST_NUMBER_DIFF_LIMIT",
-                    header.getNumber()
+                    header.getBlockNumber()
             ));
             return false;
         }

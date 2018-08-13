@@ -2,7 +2,10 @@ package sonchain.blockchain.datasource;
 
 import java.util.*;
 
-public class BatchSourceWriter<Key, Value> extends AbstractChainedSource<Key, Value, Key, Value> {
+import sonchain.blockchain.datasource.base.AbstractSource;
+import sonchain.blockchain.datasource.base.BatchSource;
+
+public class BatchSourceWriter<Key, Value> extends AbstractSource<Key, Value, Key, Value> {
 
     private Map<Key, Value> m_buf = new HashMap<>();
 

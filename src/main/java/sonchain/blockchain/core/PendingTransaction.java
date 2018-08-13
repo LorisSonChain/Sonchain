@@ -54,7 +54,7 @@ public class PendingTransaction {
     }
 
     public byte[] getSender() {
-        return m_transaction.getSender();
+        return m_transaction.getSenderAddress();
     }
 
     public byte[] getHash() {
@@ -90,7 +90,8 @@ public class PendingTransaction {
         System.arraycopy(bytes, 1, numberBytes, 0, numberBytes.length);
         System.arraycopy(bytes, 1 + numberBytes.length, txBytes, 0, txBytes.length);
         m_blockNumber = new BigInteger(numberBytes).longValue();
-        m_transaction = new Transaction(txBytes);
+        //TODO
+        //m_transaction = new Transaction(txBytes);
     }
 
 }

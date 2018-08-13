@@ -8,6 +8,7 @@ import sonchain.blockchain.listener.SonChainListener;
 import sonchain.blockchain.listener.SonChainListenerAdapter;
 import sonchain.blockchain.util.ByteUtil;
 import sonchain.blockchain.util.FastByteComparisons;
+import sonchain.blockchain.util.Numeric;
 import sonchain.blockchain.vm.program.invoke.ProgramInvokeFactory;
 
 import java.util.ArrayList;
@@ -84,7 +85,9 @@ public class PendingStateImpl implements PendingState {
     private boolean addPendingTransactionImpl(Transaction tx) {
     	m_logger.debug("addPendingTransactionImpl start. TransactionInfo:" + tx.toString());
         TransactionReceipt newReceipt = new TransactionReceipt();
-        newReceipt.setTransaction(tx);
+
+		//TODO
+        //newReceipt.setTransaction(tx);
         String err = validate(tx);
         TransactionReceipt txReceipt = null;
         if (err != null && err.length() > 0) {
@@ -95,7 +98,7 @@ public class PendingStateImpl implements PendingState {
         if (!txReceipt.isValid()) {
             fireTxUpdate(txReceipt, DROPPED, getBestBlock());
         } else {
-        	m_pendingTransactions.add(new PendingTransaction(tx, getBestBlock().getNumber()));
+        	m_pendingTransactions.add(new PendingTransaction(tx, getBestBlock().getBlockNumber()));
             fireTxUpdate(txReceipt, NEW_PENDING, getBestBlock());
         }
         boolean result = txReceipt.isValid();
@@ -161,7 +164,9 @@ public class PendingStateImpl implements PendingState {
     private void clearPending(Block block, List<TransactionReceipt> receipts) {
     	m_logger.debug("clearPending start.");
         for (int i = 0; i < block.getTransactionsList().size(); i++) {
-            Transaction tx = block.getTransactionsList().get(i);
+			//TODO
+        	Transaction tx = null;
+            //Transaction tx = block.getTransactionsList().get(i);
             PendingTransaction pend = new PendingTransaction(tx);
             if (m_pendingTransactions.remove(pend)) {
                 try {
@@ -186,7 +191,8 @@ public class PendingStateImpl implements PendingState {
     private TransactionReceipt createDroppedReceipt(Transaction tx, String error) {
     	m_logger.debug("createDroppedReceipt start. TransactionInfo:" + tx.toString() + " error:" + error);
         TransactionReceipt txReceipt = new TransactionReceipt();
-        txReceipt.setTransaction(tx);
+        //TODO
+        //txReceipt.setTransaction(tx);
         txReceipt.setError(error);
     	m_logger.debug("createDroppedReceipt end. TransactionReceiptInfo:" + txReceipt.toString());
         return txReceipt;
@@ -194,45 +200,47 @@ public class PendingStateImpl implements PendingState {
 
     private Block createFakePendingBlock() {
     	m_logger.debug("createFakePendingBlock start.");
+    	return null;
         // creating fake lightweight calculated block with no hashes calculations
-        Block block = new Block(m_best.getHash(),
-                new byte[32],
-                m_best.getNumber() + 1,
-                m_best.getTimestamp() + 1,  // block time
-                new byte[0],  	// extra data
-                new byte[32],  	// receiptsRoot
-                new byte[32],   // TransactionsRoot
-                new byte[32], 	// stateRoot
-                Collections.<Transaction>emptyList());// tx list
-    	m_logger.debug("createFakePendingBlock end.");
-        return block;
+//        Block block = new Block(m_best.getHash(),
+//                new byte[32],
+//                m_best.getBlockNumber() + 1,
+//                new BlockTimestamp(TimePoint.now()),
+//                //m_best.getTimestamp() + 1,  // block time
+//                new byte[0],  	// extra data
+//                new byte[32],   // TransactionsRoot
+//                new byte[32], 	// stateRoot
+//                Collections.<TransactionReceipt>emptyList());// tx list
+//    	m_logger.debug("createFakePendingBlock end.");
+        //return block;
     }
     
     private TransactionReceipt executeTx(Transaction tx) {
-    	m_logger.debug("executeTx start. TransactionInfo:" + tx.toString());
-    	m_logger.trace(String.format("Apply pending state tx: {%s}", Hex.toHexString(tx.getHash())));
-        Block best = getBestBlock();
-        TransactionExecutor executor = new TransactionExecutor(
-                tx, best.getMinedBy(), getRepository(),
-                m_blockStore, m_programInvokeFactory, createFakePendingBlock(), new SonChainListenerAdapter())
-                .withCommonConfig(m_commonConfig);
-        executor.init();
-        executor.execute();
-        executor.go();
-        executor.finalization();
-    	m_logger.debug("executeTx end.");
-        return executor.getReceipt();
+    	return null;
+//    	m_logger.debug("executeTx start. TransactionInfo:" + tx.toString());
+//    	m_logger.trace(String.format("Apply pending state tx: {%s}", Hex.toHexString(tx.getHash())));
+//        Block best = getBestBlock();
+//        TransactionExecutor executor = new TransactionExecutor(
+//                tx, best.getProducer(), getRepository(),
+//                m_blockStore, m_programInvokeFactory, createFakePendingBlock(), new SonChainListenerAdapter())
+//                .withCommonConfig(m_commonConfig);
+//        executor.init();
+//        executor.execute();
+//        executor.go();
+//        executor.finalization();
+//    	m_logger.debug("executeTx end.");
+//        return executor.getReceipt();
     }
 
     private Block findCommonAncestor(Block b1, Block b2) {
     	m_logger.debug("findCommonAncestor start.");
         while(!b1.isEqual(b2)) {
-            if (b1.getNumber() >= b2.getNumber()) {
-                b1 = m_blockchain.getBlockByHash(b1.getParentHash());
+            if (b1.getBlockNumber() >= b2.getBlockNumber()) {
+                b1 = m_blockchain.getBlockByHash(Numeric.hexStringToByteArray(b1.getParentHash()));
             }
 
-            if (b1.getNumber() < b2.getNumber()) {
-                b2 = m_blockchain.getBlockByHash(b2.getParentHash());
+            if (b1.getBlockNumber() < b2.getBlockNumber()) {
+                b2 = m_blockchain.getBlockByHash(Numeric.hexStringToByteArray(b2.getParentHash()));
             }
             if (b1 == null || b2 == null) {
                 // shouldn't happen
@@ -247,11 +255,12 @@ public class PendingStateImpl implements PendingState {
     	m_logger.debug("fireTxUpdate start. TransactionReceipt:" + txReceipt.toString()
     			+ " PendingTransactionState:" + state.toString() + " BlockInfo:" + block.toString());
         if (m_logger.isDebugEnabled()) {
-        	m_logger.debug(String.format("PendingTransactionUpdate: (Total: %3s) %12s : %s %8s %s [%s]",
-                    getPendingTransactions().size(),
-                    state, Hex.toHexString(txReceipt.getTransaction().getSender()).substring(0, 8),
-                    ByteUtil.byteArrayToLong(txReceipt.getTransaction().getNonce()),
-                    block.getShortDescr(), txReceipt.getError()));
+            //TODO
+        	//m_logger.debug(String.format("PendingTransactionUpdate: (Total: %3s) %12s : %s %8s %s [%s]",
+            //        getPendingTransactions().size(),
+            //        state, Hex.toHexString(txReceipt.getTransaction().getSenderAddress()).substring(0, 8),
+            //        ByteUtil.byteArrayToLong(txReceipt.getTransaction().getNonce()),
+             //       block.getShortDescr(), txReceipt.getError()));
         }
         if(m_listener != null)
         {
@@ -299,8 +308,9 @@ public class PendingStateImpl implements PendingState {
     private TransactionInfo getTransactionInfo(byte[] txHash, byte[] blockHash) {
     	m_logger.debug("getTransactionInfo start.");
         TransactionInfo info = m_transactionStore.get(txHash, blockHash);
-        Transaction tx = m_blockchain.getBlockByHash(info.getBlockHash()).getTransactionsList().get(info.getIndex());
-        info.getReceipt().setTransaction(tx);
+        //TODO
+        //Transaction tx = m_blockchain.getBlockByHash(info.getBlockHash()).getTransactionsList().get(info.getIndex());
+        //info.getReceipt().setTransaction(tx);
     	m_logger.debug("getTransactionInfo end.");
         return info;
     }
@@ -326,21 +336,22 @@ public class PendingStateImpl implements PendingState {
             Block rollback = getBestBlock();
             while(!rollback.isEqual(commonAncestor)) {
                 List<PendingTransaction> blockTxs = new ArrayList<>();
-                for (Transaction tx : rollback.getTransactionsList()) {
-                	m_logger.trace("Returning transaction back to pending: " + tx);
-                    blockTxs.add(new PendingTransaction(tx, commonAncestor.getNumber()));
-                }
+                //TODO
+                //for (Transaction tx : rollback.getTransactionsList()) {
+                //	m_logger.trace("Returning transaction back to pending: " + tx);
+                //    blockTxs.add(new PendingTransaction(tx, commonAncestor.getNumber()));
+               // }
                 m_pendingTransactions.addAll(0, blockTxs);
-                rollback = m_blockchain.getBlockByHash(rollback.getParentHash());
+                rollback = m_blockchain.getBlockByHash(Numeric.hexStringToByteArray(rollback.getParentHash()));
             }
             // rollback the state snapshot to the ancestor
-            m_pendingState = getOrigRepository().getSnapshotTo(commonAncestor.getStateRoot()).startTracking();
+            m_pendingState = getOrigRepository().getSnapshotTo(Numeric.hexStringToByteArray(commonAncestor.getStateRoot())).startTracking();
             // next process blocks from new fork
             Block main = newBlock;
             List<Block> mainFork = new ArrayList<>();
             while(!main.isEqual(commonAncestor)) {
                 mainFork.add(main);
-                main = m_blockchain.getBlockByHash(main.getParentHash());
+                main = m_blockchain.getBlockByHash(Numeric.hexStringToByteArray(main.getParentHash()));
             }
             // processing blocks from ancestor to new block
             for (int i = mainFork.size() - 1; i >= 0; i--) {
@@ -358,7 +369,7 @@ public class PendingStateImpl implements PendingState {
     
     private void processBestInternal(Block block, List<TransactionReceipt> receipts) {
         clearPending(block, receipts);
-        clearOutdated(block.getNumber());
+        clearOutdated(block.getBlockNumber());
     }
     
     public void setBlockchain(BlockChainImpl blockchain) {
@@ -367,13 +378,15 @@ public class PendingStateImpl implements PendingState {
 
     public synchronized void trackTransaction(Transaction tx) {
     	m_logger.debug("trackTransaction start.");
-        List<TransactionInfo> infos = m_transactionStore.get(tx.getHash());
+    	String strHash = Hex.toHexString(tx.getHash());
+        List<TransactionInfo> infos = m_transactionStore.get(strHash);
         if (!infos.isEmpty()) {
             for (TransactionInfo info : infos) {
                 Block txBlock = m_blockStore.getBlockByHash(info.getBlockHash());
-                if (txBlock.isEqual(m_blockStore.getChainBlockByNumber(txBlock.getNumber()))) {
+                if (txBlock.isEqual(m_blockStore.getChainBlockByNumber(txBlock.getBlockNumber()))) {
                     // transaction included to the block on main chain
-                    info.getReceipt().setTransaction(tx);
+                	// TODO
+                    //info.getReceipt().setTransaction(tx);
                     fireTxUpdate(info.getReceipt(), INCLUDED, txBlock);
                     return;
                 }

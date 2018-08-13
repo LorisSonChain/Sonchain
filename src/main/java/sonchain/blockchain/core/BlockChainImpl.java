@@ -14,9 +14,9 @@ import org.apache.log4j.Priority;
 import org.bouncycastle.util.encoders.Hex;
 
 import sonchain.blockchain.config.CommonConfig;
-import sonchain.blockchain.consensus.SonChainPeerNode;
+import sonchain.blockchain.consensus.SonChainProducerNode;
 import sonchain.blockchain.crypto.HashUtil;
-import sonchain.blockchain.datasource.Source;
+import sonchain.blockchain.datasource.base.Source;
 import sonchain.blockchain.db.BlockStore;
 import sonchain.blockchain.db.DbFlushManager;
 import sonchain.blockchain.db.IndexedBlockStore;
@@ -31,6 +31,7 @@ import sonchain.blockchain.sync.SyncManager;
 import sonchain.blockchain.trie.Trie;
 import sonchain.blockchain.trie.TrieImpl;
 import sonchain.blockchain.util.FastByteComparisons;
+import sonchain.blockchain.util.Numeric;
 import sonchain.blockchain.util.RLP;
 import sonchain.blockchain.validator.DependentBlockHeaderRule;
 import sonchain.blockchain.validator.DependentBlockHeaderRuleAdapter;
@@ -40,6 +41,29 @@ import sonchain.blockchain.vm.program.invoke.ProgramInvokeFactoryImpl;
 import static java.util.Collections.emptyList;
 import static sonchain.blockchain.core.ImportResult.*;
 
+
+/**
+ * The define of block. Blocks contain a copy of both the transaction list and
+ * the most recent state. Aside from that, two other values, the block number
+ * are also stored in the block. </p> getProgramInvokeFactory
+ * The block validation algorithm is as follows:
+ * <ol>
+ * <li>Check if the previous block referenced exists and is valid.</li>
+ * <li>Check that the timestamp of the block is greater than that of the
+ * referenced previous block and less than 15 minutes into the future</li>
+ * <li>Check that the block number, transaction root (various low-level concepts) are valid.</li>
+ * <li>Let S[0] be the STATE_ROOT of the previous block.</li>
+ * <li>Let TX be the block's transaction list, with n transactions. For all in
+ * in 0...n-1, set S[i+1] = APPLY(S[i],TX[i]). If any applications returns an
+ * error, return an error.</li>
+ * <li>Let S_FINAL be S[n], but adding the block reward paid to the miner.</li>
+ * <li>Check if S_FINAL is the same as the STATE_ROOT. If it is, the block is
+ * valid; otherwise, it is not valid.</li>
+ * </ol>
+ * 
+ * @author GAIA
+ *
+ */
 public class BlockChainImpl implements BlockChain {
 
 	private class State {
@@ -74,9 +98,9 @@ public class BlockChainImpl implements BlockChain {
 	public boolean m_byTest = false;
 	private long m_exitOn = Long.MAX_VALUE;
 	private List<Block> m_garbage = new ArrayList<>();
-	private byte[] m_nodeAddress = null;
+	private String m_nodeAddress = "";
 	private byte[] m_minerExtraData = null;
-	private List<SonChainPeerNode> m_validators = new ArrayList<SonChainPeerNode>();
+	private List<SonChainProducerNode> m_validators = new ArrayList<SonChainProducerNode>();
 
 	/**
 	 * Constructor
@@ -116,12 +140,12 @@ public class BlockChainImpl implements BlockChain {
                 Thread.sleep(50);
             } catch (InterruptedException e) {
             }
-            BlockSummary summary1 = addImpl(repo.getSnapshotTo(getBestBlock().getStateRoot()), block);
-            m_logger.warn("Second import trial " + (summary1 == null ? "FAILED" : "OK"));
-            if (summary1 != null) {
-            	m_logger.error("Inconsistent behavior, exiting...");
-                System.exit(-1);
-            }
+            //BlockSummary summary1 = addImpl(repo.getSnapshotTo(getBestBlock().getStateRoot()), block);
+           // m_logger.warn("Second import trial " + (summary1 == null ? "FAILED" : "OK"));
+            //if (summary1 != null) {
+           // 	m_logger.error("Inconsistent behavior, exiting...");
+            //    System.exit(-1);
+            //}
         }
     	m_logger.debug("add end.");
         return summary;
@@ -134,31 +158,35 @@ public class BlockChainImpl implements BlockChain {
 
     private BlockSummary applyBlock(Repository track, Block block) {
     	m_logger.debug(String.format("applyBlock start: block: [{%d}] tx.list: [{%d}]", 
-    			block.getNumber(), block.getTransactionsList().size()));
+    			block.getBlockNumber(), block.getTransactionsList().size()));
         long saveTime = System.nanoTime();
         int i = 1;
         List<TransactionReceipt> receipts = new ArrayList<>();
         List<TransactionExecutionSummary> summaries = new ArrayList<>();
-        for (Transaction tx : block.getTransactionsList()) {
-        	m_logger.debug(String.format("apply block: [{%d}] tx: [{%d}] ", block.getNumber(), i));
+        for (TransactionReceipt tx : block.getTransactionsList()) {
+        	m_logger.debug(String.format("apply block: [{%d}] tx: [{%d}] ", block.getBlockNumber(), i));
             Repository txTrack = track.startTracking();
-            TransactionExecutor executor = new TransactionExecutor(tx, block.getMinedBy(),
-                    txTrack, m_blockStore, m_programInvokeFactory, block, m_listener)
-                    .withCommonConfig(m_commonConfig);
+            //TODO
+            TransactionExecutor executor = null;
+            //TransactionExecutor executor = new TransactionExecutor(tx, block.getProducer(),
+            //        txTrack, m_blockStore, m_programInvokeFactory, block, m_listener)
+            //        .withCommonConfig(m_commonConfig);
             executor.init();
             executor.execute();
             executor.go();
             TransactionExecutionSummary summary = executor.finalization();
             txTrack.commit();
             final TransactionReceipt receipt = executor.getReceipt();
-            receipt.setPostTxState(track.getRoot());
+            //TODO
+            //receipt.setPostTxState(track.getRoot());
             m_logger.info(String.format("block: [{%d}] executed tx: [{%d}] \n  state: [{%s}]", 
-            		block.getNumber(), i,
+            		block.getBlockNumber(), i,
                     Hex.toHexString(track.getRoot())));
             m_logger.info(String.format("[{%s}] ", receipt.toString()));
             if (m_logger.isInfoEnabled()){
-            	m_logger.info(String.format("tx[{}].receipt: [{}] ", i,
-            			Hex.toHexString(receipt.getEncoded())));
+                //TODO
+            	//m_logger.info(String.format("tx[{}].receipt: [{}] ", i,
+            	//		Hex.toHexString(receipt.getEncoded())));
             }
             receipts.add(receipt);
             if (summary != null) {
@@ -168,36 +196,37 @@ public class BlockChainImpl implements BlockChain {
         long totalTime = System.nanoTime() - saveTime;
         m_adminInfo.addBlockExecTime(totalTime);
         m_logger.debug(String.format("applyBlock end block : num: [{%d}] hash: [{%s}], "
-        		+ "executed after: [{%d}]nano", block.getNumber(), block.getShortHash(), totalTime));
+        		+ "executed after: [{%d}]nano", block.getBlockNumber(), block.getShortHash(), totalTime));
         return new BlockSummary(block, receipts, summaries);
     }
 
     public synchronized BlockSummary addImpl(Repository repo, final Block block) {
     	m_logger.debug("addImpl start.");
-        if (m_exitOn < block.getNumber()) {
-            System.out.print("Exiting after block.number: " + m_bestBlock.getNumber());
+        if (m_exitOn < block.getBlockNumber()) {
+            System.out.print("Exiting after block.number: " + m_bestBlock.getBlockNumber());
             m_dbFlushManager.flushSync();
             System.exit(-1);
         }
         if (!isValid(repo, block)) {
-        	m_logger.warn(String.format("Invalid block with number: {%d}", block.getNumber()));
+        	m_logger.warn(String.format("Invalid block with number: {%d}", block.getBlockNumber()));
             return null;
         }
         byte[] origRoot = repo.getRoot();
         BlockSummary summary = processBlock(repo, block);
         final List<TransactionReceipt> receipts = summary.getReceipts();
-        if (!FastByteComparisons.equal(block.getReceiptsRoot(), calcReceiptsTrie(receipts))) {
-        	m_logger.warn(String.format("Block's given Receipt Hash doesn't match: {%s} != {%s}", 
-            		Hex.toHexString(block.getReceiptsRoot()), 
-            		Hex.toHexString(calcReceiptsTrie(receipts))));
-        	m_logger.warn("Calculated receipts: " + receipts);
-            repo.rollback();
-            summary = null;
-        }
+        //TODO
+//        if (!FastByteComparisons.equal(block.getReceiptsRoot(), calcReceiptsTrie(receipts))) {
+//        	m_logger.warn(String.format("Block's given Receipt Hash doesn't match: {%s} != {%s}", 
+//            		Hex.toHexString(block.getReceiptsRoot()), 
+//            		Hex.toHexString(calcReceiptsTrie(receipts))));
+//        	m_logger.warn("Calculated receipts: " + receipts);
+//            repo.rollback();
+//            summary = null;
+//        }
         
-        if (!FastByteComparisons.equal(block.getStateRoot(), repo.getRoot())) {
+        if (!block.getStateRoot().equals(repo.getRoot())) {
         	m_logger.warn(String.format("BLOCK: State conflict or received invalid block. "
-        			+ "block: {%d} worldstate {%s} mismatch", block.getNumber(), 
+        			+ "block: {%d} worldstate {%s} mismatch", block.getBlockNumber(), 
         			Hex.toHexString(repo.getRoot())));
         	m_logger.warn(String.format("Conflict block dump: {}",
         			Hex.toHexString(block.getEncoded())));
@@ -229,21 +258,23 @@ public class BlockChainImpl implements BlockChain {
             return HashUtil.EMPTY_TRIE_HASH;
 
         for (int i = 0; i < receipts.size(); i++) {
-            receiptsTrie.put(RLP.encodeInt(i), receipts.get(i).getReceiptTrieEncoded());
+        	//TODO
+            //receiptsTrie.put(RLP.encodeInt(i), receipts.get(i).getReceiptTrieEncoded());
         }
     	m_logger.debug("calcReceiptsTrie end.");
         return receiptsTrie.getRootHash();
     }
 
     @Override
-	public byte[] calcTxTrie(List<Transaction> transactions) {
+	public byte[] calcTxTrie(List<TransactionReceipt> transactions) {
     	m_logger.debug("calcTxTrie start.");
 		Trie txsState = new TrieImpl();
 		if (transactions == null || transactions.isEmpty()) {
 			return HashUtil.EMPTY_TRIE_HASH;
 		}
 		for (int i = 0; i < transactions.size(); i++) {
-			txsState.put(RLP.encodeInt(i), transactions.get(i).getEncoded());
+        	//TODO
+			//txsState.put(RLP.encodeInt(i), transactions.get(i).getEncoded());
 		}
     	m_logger.debug("calcTxTrie end.");
 		return txsState.getRootHash();
@@ -258,13 +289,15 @@ public class BlockChainImpl implements BlockChain {
     }
 
 	@Override
-    public synchronized Block createNewBlock(Block parent, List<Transaction> txs) {
+    public synchronized Block createNewBlock(Block parent, List<TransactionReceipt> txs) {
     	m_logger.debug("createNewBlock start.");
-        long time = System.currentTimeMillis() / 1000;
+        //long time = System.currentTimeMillis() / 1000;
+        BlockTimestamp time = new BlockTimestamp(TimePoint.now());
         // adjust time to parent block this may happen due to system clocks difference
-        if (parent.getTimestamp() >= time) {
-        	time = parent.getTimestamp() + 1;
-        }
+        //TODO
+        //if (parent.getTimestamp() >= time) {
+        //	time = parent.getTimestamp() + 1;
+        //}
     	m_logger.debug("createNewBlock end.");
         return createNewBlock(parent, txs, time);
     }  
@@ -285,24 +318,23 @@ public class BlockChainImpl implements BlockChain {
         return false;
     }
 
-    public synchronized Block createNewBlock(Block parent, List<Transaction> txs, long time) {
+    public synchronized Block createNewBlock(Block parent, List<TransactionReceipt> txs, BlockTimestamp time) {
     	m_logger.debug("createNewBlock111 start.");
-        final long blockNumber = parent.getNumber() + 1;
-        Block block = new Block(parent.getHash(),
+        final long blockNumber = parent.getBlockNumber() + 1;
+        Block block = new Block(Hex.toHexString(parent.getHash()),
         		m_nodeAddress,
                 blockNumber,
                 time,  				// block time
-                new byte[] {0},  	// extra data
-                new byte[0],  		// receiptsRoot - computed after running all transactions
-                calcTxTrie(txs),    // TransactionsRoot - computed after running all transactions
-                new byte[] {0}, 	// stateRoot - computed after running all transactions
+                "",  	// extra data
+                Hex.toHexString(calcTxTrie(txs)),    // TransactionsRoot - computed after running all transactions
+                "", 	// stateRoot - computed after running all transactions
                 txs);  
         
-        Repository track = m_repository.getSnapshotTo(parent.getStateRoot());
-        BlockSummary summary = applyBlock(track, block);
-        List<TransactionReceipt> receipts = summary.getReceipts();
-        block.setStateRoot(track.getRoot());
-        block.getHeader().setReceiptsRoot(calcReceiptsTrie(receipts));
+        //Repository track = m_repository.getSnapshotTo(parent.getStateRoot());
+        //BlockSummary summary = applyBlock(track, block);
+        //List<TransactionReceipt> receipts = summary.getReceipts();
+        //block.setStateRoot(track.getRoot());
+        //block.getHeader().setReceiptTrieRoot(calcReceiptsTrie(receipts));
     	m_logger.debug("createNewBlock111 end. BlockInfo:" + block.toString());
         return block;
     }
@@ -377,26 +409,34 @@ public class BlockChainImpl implements BlockChain {
 	}
 	
 	@Override
-	public SonChainPeerNode[] getValidators(){
+	public SonChainProducerNode[] getValidators(){
 		return DataCenter.GetStandbyPeerNodes();
 	}
 	
-	public List<SonChainPeerNode> getValidators(boolean flag){
+	public List<SonChainProducerNode> getValidators(boolean flag){
 		//getStateSource.
-		return new ArrayList<SonChainPeerNode>();
+		return new ArrayList<SonChainProducerNode>();
 	}
 	
     public BlockStore initBlockStore() {
     	m_logger.debug("initBlockStore start.");
 		m_commonConfig.fastSyncCleanUp();
 		IndexedBlockStore indexedBlockStore = new IndexedBlockStore();
-		Source<byte[], byte[]> block = m_commonConfig.getCachedDbSource("block");
-		Source<byte[], byte[]> index = m_commonConfig.getCachedDbSource("index");
+		Source<String, String> block = m_commonConfig.getCachedDbSource("block");
+		Source<String, String> index = m_commonConfig.getCachedDbSource("index");
 		indexedBlockStore.Init(index, block);
     	m_logger.debug("initBlockStore end.");
 		return indexedBlockStore;
     }
-    
+
+    /**
+     * Finds up to limit blocks starting from blockNumber on main chain
+     * @param bestNumber        Number of best block
+     * @param blockNumber       Number of block to start search (included in return)
+     * @param limit             Maximum number of headers in response
+     * @param reverse           Order of search
+     * @return  headers found by query or empty list if none
+     */
     private List<BlockHeader> getContinuousHeaders(long bestNumber, long blockNumber, int limit, boolean reverse) {
     	m_logger.debug("getContinuousHeaders start.");
         int qty = getQty(blockNumber, bestNumber, limit, reverse);
@@ -414,13 +454,21 @@ public class BlockChainImpl implements BlockChain {
         return headers;
     }
 
+    /**
+     * Gets blocks from main chain with gaps between
+     * @param startBlock        Block to start from (included in return)
+     * @param skip              Number of blocks skipped between every header in return
+     * @param limit             Maximum number of headers in return
+     * @param reverse           Order of search
+     * @return  headers found by query or empty list if none
+     */
     private List<BlockHeader> getGapedHeaders(Block startBlock, int skip, int limit, boolean reverse) {
     	m_logger.debug("getGapedHeaders start.");
         List<BlockHeader> headers = new ArrayList<>();
         headers.add(startBlock.getHeader());
         int offset = skip + 1;
         if (reverse) offset = -offset;
-        long currentNumber = startBlock.getNumber();
+        long currentNumber = startBlock.getBlockNumber();
         boolean finished = false;
 
         while(!finished && headers.size() < limit) {
@@ -436,6 +484,12 @@ public class BlockChainImpl implements BlockChain {
         return headers;
     }
     
+    /**
+     * Returns list of block bodies by block hashes, stopping on first not found block
+     * [Synchronized only in blockstore, not using any synchronized BlockchainImpl methods]
+     * @param hashes List of hashes
+     * @return List of RLP encoded block bodies
+     */
     @Override
     public List<byte[]> getListOfBodiesByHashes(List<byte[]> hashes) {
     	m_logger.debug("getListOfBodiesByHashes start.");
@@ -450,7 +504,16 @@ public class BlockChainImpl implements BlockChain {
     	m_logger.debug("getListOfBodiesByHashes end.");
         return bodies;
     }
-    
+
+    /**
+     * Returns up to limit headers found with following search parameters
+     * [Synchronized only in blockstore, not using any synchronized BlockchainImpl methods]
+     * @param identifier        Identifier of start block, by number of by hash
+     * @param skip              Number of blocks to skip between consecutive headers
+     * @param limit             Maximum number of headers in return
+     * @param reverse           Is search reverse or not
+     * @return  {@link BlockHeader}'s list or empty list if none found
+     */
     @Override
     public List<BlockHeader> getListOfHeadersStartFrom(BlockIdentifier identifier, int skip, int limit, boolean reverse) {
     	m_logger.debug("getListOfHeadersStartFrom start.");
@@ -466,13 +529,13 @@ public class BlockChainImpl implements BlockChain {
             return emptyList();
         }
         if (identifier.getHash() != null) {
-            Block mainChainBlock = m_blockStore.getChainBlockByNumber(startBlock.getNumber());
+            Block mainChainBlock = m_blockStore.getChainBlockByNumber(startBlock.getBlockNumber());
             if (!startBlock.equals(mainChainBlock)) return emptyList();
         }
         List<BlockHeader> headers;
         if (skip == 0) {
-            long bestNumber = m_blockStore.getBestBlock().getNumber();
-            headers = getContinuousHeaders(bestNumber, startBlock.getNumber(), limit, reverse);
+            long bestNumber = m_blockStore.getBestBlock().getBlockNumber();
+            headers = getContinuousHeaders(bestNumber, startBlock.getBlockNumber(), limit, reverse);
         } else {
             headers = getGapedHeaders(startBlock, skip, limit, reverse);
         }
@@ -489,7 +552,7 @@ public class BlockChainImpl implements BlockChain {
     @Override
     public synchronized List<byte[]> getListOfHashesStartFromBlock(long blockNumber, int qty) {
     	m_logger.debug("getListOfHashesStartFromBlock start.");
-        long bestNumber = m_bestBlock.getNumber();
+        long bestNumber = m_bestBlock.getBlockNumber();
         if (blockNumber > bestNumber) {
             return emptyList();
         }
@@ -506,14 +569,14 @@ public class BlockChainImpl implements BlockChain {
     }
 
 	@Override
-	public byte[] getNodeAddress() {
+	public String getNodeAddress() {
     	m_logger.debug("getNodeAddress start.");
         return m_nodeAddress;
 	}
 	
     public Block getParent(BlockHeader header) {
     	m_logger.debug("getParent start.");
-        return m_blockStore.getBlockByHash(header.getParentHash());
+        return m_blockStore.getBlockByHash(Numeric.hexStringToByteArray(header.getParentHash()));
     }
     
     public PendingState getPendingState() {
@@ -556,14 +619,14 @@ public class BlockChainImpl implements BlockChain {
     @Override
 	public Repository getRepositorySnapshot() {
     	m_logger.debug("getRepositorySnapshot start.");
-		return m_repository.getSnapshotTo(m_blockStore.getBestBlock()
-				.getStateRoot());
+		return m_repository.getSnapshotTo(Numeric.hexStringToByteArray(m_blockStore.getBestBlock()
+				.getStateRoot()));
 	}
 
 	@Override
 	public long getSize() {
     	m_logger.debug("getSize start.");
-		return m_bestBlock.getNumber() + 1;
+		return m_bestBlock.getBlockNumber() + 1;
 	}
 
     private byte[] getStartHash(long blockNumber, int qty, boolean reverse) {
@@ -586,7 +649,8 @@ public class BlockChainImpl implements BlockChain {
 	@Override
 	public TransactionInfo getTransactionInfo(byte[] hash) {
     	m_logger.debug("getTransactionInfo start.");
-		List<TransactionInfo> infos = m_transactionStore.get(hash);
+    	String strHash = Hex.toHexString(hash);
+		List<TransactionInfo> infos = m_transactionStore.get(strHash);
 		if (infos == null || infos.isEmpty()){
 			return null;
 		}
@@ -597,7 +661,7 @@ public class BlockChainImpl implements BlockChain {
 			// pick up the receipt from the block on the main chain
 			for (TransactionInfo info : infos) {
 				Block block = m_blockStore.getBlockByHash(info.getBlockHash());
-				Block mainBlock = m_blockStore.getChainBlockByNumber(block.getNumber());
+				Block mainBlock = m_blockStore.getChainBlockByNumber(block.getBlockNumber());
 				if (FastByteComparisons.equal(info.getBlockHash(), mainBlock.getHash())) {
 					txInfo = info;
 					break;
@@ -609,8 +673,7 @@ public class BlockChainImpl implements BlockChain {
 	    	m_logger.debug("getTransactionInfo end.");
 			return null;
 		}
-		Transaction tx = getBlockByHash(txInfo.getBlockHash())
-				.getTransactionsList().get(txInfo.getIndex());
+		TransactionReceipt tx = getBlockByHash(txInfo.getBlockHash()).getTransactionsList().get(txInfo.getIndex());
 		txInfo.setTransaction(tx);
     	m_logger.debug("getTransactionInfo end.");
 		return txInfo;
@@ -669,7 +732,7 @@ public class BlockChainImpl implements BlockChain {
         boolean isValid = true;        
         if (!block.isGenesis()) {
             isValid = isValid(block.getHeader());
-            String trieHash = Hex.toHexString(block.getTxMerkleRoot());
+            String trieHash = block.getTxMerkleRoot();
             String trieListHash = Hex.toHexString(calcTxTrie(block.getTransactionsList()));
             if (!trieHash.equals(trieListHash)) {
             	m_logger.warn(String.format("Block's given Trie Hash doesn't match: {%s} != {%s}", 
@@ -723,7 +786,7 @@ public class BlockChainImpl implements BlockChain {
     	m_logger.debug("pushState start.");
         State push = m_stateStack.push(new State());
         m_bestBlock = m_blockStore.getBlockByHash(bestBlockHash);
-        m_repository = m_repository.getSnapshotTo(m_bestBlock.getStateRoot());
+        m_repository = m_repository.getSnapshotTo(Numeric.hexStringToByteArray(m_bestBlock.getStateRoot()));
         return push;
     }
 
@@ -767,7 +830,7 @@ public class BlockChainImpl implements BlockChain {
     public void setBestBlock(Block block) {
     	m_logger.debug("setBestBlock start."); 
     	m_bestBlock = block;
-    	m_repository = m_repository.getSnapshotTo(block.getStateRoot());
+    	m_repository = m_repository.getSnapshotTo(Numeric.hexStringToByteArray(block.getStateRoot()));
     }
     
     public void setExitOn(long exitOn) {
@@ -780,7 +843,7 @@ public class BlockChainImpl implements BlockChain {
     	m_minerExtraData = minerExtraData;
     }
 
-    public void setNodeAddress(byte[] nodeAddress) {
+    public void setNodeAddress(String nodeAddress) {
     	m_logger.debug("setNodeAddress start."); 
     	m_nodeAddress = nodeAddress;
     }
@@ -813,14 +876,14 @@ public class BlockChainImpl implements BlockChain {
         	m_transactionStore.put(new TransactionInfo(receipts.get(i), block.getHash(), i));
         }
         m_logger.debug(String.format("Block saved: number: {%d}, hash: {%s}",
-                block.getNumber(), block.getShortHash()));
+                block.getBlockNumber(), block.getShortHash()));
         setBestBlock(block);
         if (m_logger.isDebugEnabled()){
         	m_logger.debug(String.format("block added to the blockChain: index: [{%d}]", 
-        			block.getNumber()));
+        			block.getBlockNumber()));
         }
-        if (block.getNumber() % 100 == 0){
-        	m_logger.info(String.format("*** Last block added [ #{%d} ]", block.getNumber()));
+        if (block.getBlockNumber() % 100 == 0){
+        	m_logger.info(String.format("*** Last block added [ #{%d} ]", block.getBlockNumber()));
         }
     	m_logger.debug("storeBlock end."); 
     }
@@ -829,14 +892,14 @@ public class BlockChainImpl implements BlockChain {
     	m_logger.debug("tryToConnect start."); 
         if (m_logger.isDebugEnabled())
         	m_logger.debug(String.format("Try connect block hash: {%s}, number: {%d}",
-                    Hex.toHexString(block.getHash()).substring(0, 6), block.getNumber()));
+                    Hex.toHexString(block.getHash()).substring(0, 6), block.getBlockNumber()));
 
-        if (m_blockStore.getMaxNumber() >= block.getNumber() &&
+        if (m_blockStore.getMaxNumber() >= block.getBlockNumber() &&
         		m_blockStore.isBlockExist(block.getHash())) {
             if (m_logger.isDebugEnabled())
             	m_logger.debug(String.format("Block already exist hash: {%s}, number: {%d}",
                         Hex.toHexString(block.getHash()).substring(0, 6),
-                        block.getNumber()));
+                        block.getBlockNumber()));
             // retry of well known block
         	m_logger.debug("tryToConnect end."); 
             return EXIST;
@@ -851,7 +914,7 @@ public class BlockChainImpl implements BlockChain {
             summary = add(m_repository, block);
             ret = summary == null ? INVALID_BLOCK : IMPORTED_BEST;
         } else {
-            if (m_blockStore.isBlockExist(block.getParentHash())) {
+            if (m_blockStore.isBlockExist(Numeric.hexStringToByteArray(block.getParentHash()))) {
                 recordBlock(block);
                 summary = tryConnectAndFork(block);
                 ret = summary == null ? INVALID_BLOCK : IMPORTED_BEST;
@@ -879,15 +942,16 @@ public class BlockChainImpl implements BlockChain {
     
     private synchronized BlockSummary tryConnectAndFork(final Block block) {
     	m_logger.debug("tryConnectAndFork start."); 
-        State savedState = pushState(block.getParentHash());
+    	byte[] parentHash = Numeric.hexStringToByteArray(block.getParentHash());
+        State savedState = pushState(parentHash);
 
         final BlockSummary summary;
         Repository repo;
         try {
 
             // FIXME: adding block with no option for flush
-            Block parentBlock = getBlockByHash(block.getParentHash());
-            repo = m_repository.getSnapshotTo(parentBlock.getStateRoot());
+            Block parentBlock = getBlockByHash(parentHash);
+            repo = m_repository.getSnapshotTo(Numeric.hexStringToByteArray(parentBlock.getStateRoot()));
             summary = add(repo, block);
             if (summary == null) {
                 return null;

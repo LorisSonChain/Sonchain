@@ -46,6 +46,9 @@ public class ConsensusService{
           }
     });
 	
+	/**
+	 * Init
+	 */
 	public ConsensusService(){
     	try
     	{
@@ -56,6 +59,12 @@ public class ConsensusService{
     	}
 	}
 	
+	/**
+	 * addTransaction
+	 * @param tx
+	 * @param verify
+	 * @return
+	 */
 	public boolean addTransaction(Transaction tx, boolean verify){		
 		m_logger.debug("addTransaction start: TransactionInfo:" + tx.toString() + " verifyStatus:" + verify);		
 		if(m_blockChain.containsTransaction(m_blockChain.getBestBlockHash(), tx.getHash())
@@ -68,10 +77,9 @@ public class ConsensusService{
 		m_context.m_transactions.put(tx.getHash(), tx);
 		if(m_context.m_lstTransaction.size() == m_context.m_transactions.size()){
 			
-			SonChainPeerNode[] nodes = m_blockChain.getValidators();
+			SonChainProducerNode[] nodes = m_blockChain.getValidators();
             if (nodes.length > m_context.m_myIndex 
-            		&& FastByteComparisons.equal(Numeric.hexStringToByteArray(nodes[m_context.m_myIndex].getAddress()), 
-            				m_context.m_nextConsensus))
+            		&& nodes[m_context.m_myIndex].getAddress().equals(m_context.m_nextConsensus))
             {
             	m_logger.debug("send perpare response");
             	m_context.m_state |= ConsensusContext.SignatureSent;
@@ -89,6 +97,10 @@ public class ConsensusService{
 		return true;
 	}
 	
+	/**
+	 * blockChainPersistCompleted
+	 * @param block
+	 */
 	public void blockChainPersistCompleted(BlockSummary block){
 		m_logger.debug("BlockChainPersistCompleted BlockInfo:" + block.toString());
 		Calendar now = Calendar.getInstance(Locale.CHINA);
@@ -96,6 +108,10 @@ public class ConsensusService{
 		initializeConsensus(0);
 	}
     
+	/**
+	 * checkExpectedView
+	 * @param view_number
+	 */
     private void checkExpectedView(int view_number){
     	m_logger.debug(" checkExpectedView start viewNumber:" + view_number);
     	if(m_context.m_viewNumber == view_number){
@@ -120,6 +136,9 @@ public class ConsensusService{
         return true;
     }
     
+    /**
+     * checkSignatures
+     */
     private void checkSignatures()
     {
     	m_logger.debug(" checkSignatures start.");
@@ -149,7 +168,8 @@ public class ConsensusService{
         			trans.add(tx);
         		}
         	}
-            block.setTransactionsList(trans);
+			//TODO
+            //block.setTransactionsList(trans);
             m_logger.debug("checkSignatures relay block: blockInfo:" + block.toString());
             if (!DataCenter.getNodeManager().relayBlock(block)){
             	m_logger.debug("checkSignatures reject block: blockInfo:" + block.toString());
@@ -168,10 +188,14 @@ public class ConsensusService{
     		//TODO
             //LocalNode.InventoryReceiving -= LocalNode_InventoryReceiving;
             //LocalNode.InventoryReceived -= LocalNode_InventoryReceived;
+    		m_started = false;
     	}
     	m_logger.debug("OnStop end.");    	
     }
     
+    /**
+     * fillContext
+     */
     private void fillContext()
     {
     	m_logger.debug("fillContext start.");
@@ -186,10 +210,12 @@ public class ConsensusService{
     	m_logger.debug("fillContext end.");
     }
 
+    /**
+     * requestChangeView
+     */
     public void requestChangeView()
     {
-    	m_logger.debug("requestChangeView start.");
-    	
+    	m_logger.debug("requestChangeView start.");    	
         m_context.m_state |= m_context.ViewChanging;
         m_context.m_expectedView[m_context.m_myIndex]++;
         m_logger.debug(String.format("request change view: height={%d} view={%d}"
@@ -207,6 +233,9 @@ public class ConsensusService{
     	m_logger.debug("requestChangeView end.");
     }
     
+    /**
+     * initializeConsensus
+     */
     private void initializeConsensus(int view_number){
     	m_logger.debug("initializeConsensus start. view_number:" + view_number);
     	synchronized(m_context)
@@ -240,7 +269,7 @@ public class ConsensusService{
     			Calendar now = Calendar.getInstance(Locale.CHINA);
     			int span = (int)(now.getTime().getTime() - m_blockReceivedTime.getTime() / 1000);
     			m_logger.debug("the separator time is:" + span);
-    			if(span >= DataCenter.getSonChainImpl().SecondsPerBlock){    				
+    			if(span >= DataCenter.getSonChainImpl().SecondsPerBlock){
     		        m_statTimer.schedule(new ConsensusServiceTaskExecutor(), 0, TimeUnit.SECONDS);
     			}
     			else
@@ -255,13 +284,18 @@ public class ConsensusService{
     			m_context.m_state = ConsensusContext.Backup;
     			m_timerHeight = m_context.m_blockNumber;
     			m_timerView = view_number;
-		        m_statTimer.schedule(new ConsensusServiceTaskExecutor(), 
-		        		DataCenter.getSonChainImpl().SecondsPerBlock << (view_number + 1), TimeUnit.SECONDS);
+    			int delayTime = DataCenter.getSonChainImpl().SecondsPerBlock << (view_number + 1);
+    			m_logger.debug(String.format("Backup ConsensusServiceTaskExecutor timeout:{%d}", delayTime));
+		        m_statTimer.schedule(new ConsensusServiceTaskExecutor(), delayTime, TimeUnit.SECONDS);
     		}
     	}
     	m_logger.debug("initializeConsensus end. view_number:" + view_number);
     }
     
+    /**
+     * localNodeInventoryReceived
+     * @param inventory
+     */
     public void localNodeInventoryReceived(ConsensusPayload inventory)
     {
     	m_logger.debug("LocalNodeInventoryReceived start.");
@@ -279,11 +313,11 @@ public class ConsensusService{
                 if(!FastByteComparisons.equal(inventory.m_preHash, m_context.m_preHash)
                 		|| inventory.m_blockNumber != m_context.m_blockNumber){
                 	// Request blocks
-                    if (m_blockChain.getBestBlock().getNumber() + 1 < inventory.m_blockNumber)
+                    if (m_blockChain.getBestBlock().getBlockNumber() + 1 < inventory.m_blockNumber)
                     {                    	
                         //m_logger.debug("chain sync: expected={payload.BlockIndex} current: {Blockchain.Default?.Height}");
                         m_logger.debug(String.format("chain sync: expected={%d} current: {%d}", inventory.m_blockNumber,
-                        		m_blockChain.getBestBlock().getNumber()));
+                        		m_blockChain.getBestBlock().getBlockNumber()));
                         DataCenter.getNodeManager().requestGetBlocks();
                     }
                     return;
@@ -315,9 +349,10 @@ public class ConsensusService{
     	m_logger.debug("LocalNodeInventoryReceived end.");
     }
 
-    public void localNodeInventoryReceiving(Transaction tx)
+    private void localNodeInventoryReceiving(Transaction tx)
     {
     	m_logger.debug("LocalNodeInventoryReceiving start.");
+        //Transaction tx = e.getTransaction();
         if (tx != null)
         {
         	m_logger.debug("LocalNodeInventoryReceiving TransactionInfo：" + tx.toString());
@@ -352,7 +387,7 @@ public class ConsensusService{
     }
 
     /**
-     * 收到更新视图的请求
+     * onChangeViewReceived
      * @param payload
      * @param message
      */
@@ -360,6 +395,7 @@ public class ConsensusService{
     {
     	m_logger.debug(String.format("OnChangeViewReceived start height={%d} view={%d} index={%d} nv={%d}",
         		payload.m_blockNumber, message.m_viewNumber, payload.m_validatorIndex, message.m_newViewNumber));
+    
         if (message.m_newViewNumber <= m_context.m_expectedView[payload.m_validatorIndex]){
             return;
         }
@@ -369,10 +405,16 @@ public class ConsensusService{
         		payload.m_blockNumber, message.m_viewNumber, payload.m_validatorIndex, message.m_newViewNumber));
     }
     
+    /**
+     * onPrepareRequestReceived
+     * @param payload
+     * @param message
+     */
     private void onPrepareRequestReceived(ConsensusPayload payload, PrepareRequestMessage message)
     {
     	m_logger.debug(String.format("OnPrepareRequestReceived start height={%d} view={%d} index={%d} tx={%d} state={%d}",
         		payload.m_blockNumber, message.m_viewNumber, payload.m_validatorIndex, message.m_lstTransaction.size(), m_context.m_state));
+    	
     	if ((m_context.m_state & ConsensusContext.Backup) == 0
         		|| (m_context.m_state & ConsensusContext.RequestReceived) != 0){
             return;
@@ -382,12 +424,13 @@ public class ConsensusService{
         }
 		Calendar now = Calendar.getInstance(Locale.CHINA);
 		now.add(Calendar.MINUTE, 10);
-        if (payload.m_timestamp <= m_blockChain.getBlockByHash(m_context.m_preHash).getTimestamp() 
-        		|| payload.m_timestamp > now.getTimeInMillis())
-        {
-        	m_logger.debug(String.format("Timestamp incorrect: {%d}", payload.m_timestamp));
-            return;
-        }
+		//TOOD
+        //if (payload.m_timestamp <= m_blockChain.getBlockByHash(m_context.m_preHash).getTimestamp() 
+        //		|| payload.m_timestamp > now.getTimeInMillis())
+       // {
+       // 	m_logger.debug(String.format("Timestamp incorrect: {%d}", payload.m_timestamp));
+       //     return;
+       // }
         m_context.m_state |= ConsensusContext.RequestReceived;
         m_context.m_timestamp = payload.m_timestamp;
         m_context.m_nonce = message.m_nonce;
@@ -423,6 +466,10 @@ public class ConsensusService{
         		payload.m_blockNumber, message.m_viewNumber, payload.m_validatorIndex, message.m_lstTransaction.size(), m_context.m_state));
     }
 
+    /**
+     * @param payload
+     * @param message
+     */
     private void onPrepareResponseReceived(ConsensusPayload payload, PrepareResponseMessage message)
     {
     	m_logger.debug(String.format("OnPrepareResponseReceived start height={%d} view={%d} index={%d} state={%d}",
@@ -446,11 +493,17 @@ public class ConsensusService{
         checkSignatures();
     }
 
+    /**
+     * @param payload
+     */
     public void signAndRelay(ConsensusPayload payload)
     {
     	DataCenter.getNodeManager().relayDirectly(payload);
     }
     
+    /**
+     * start
+     */
     public void start(){
     	m_logger.debug("start ");
     	m_started = true;

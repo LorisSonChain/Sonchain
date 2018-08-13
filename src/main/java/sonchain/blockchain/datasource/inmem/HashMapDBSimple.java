@@ -5,18 +5,19 @@ import java.util.Set;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import sonchain.blockchain.datasource.DbSource;
+import sonchain.blockchain.datasource.base.DbSource;
 import sonchain.blockchain.util.ByteArrayMap;
+import sonchain.blockchain.util.StringMap;
 
 public class HashMapDBSimple<V> implements DbSource<V> {
 
-    protected final Map<byte[], V> m_storage;
+    protected final Map<String, V> m_storage;
 
     public HashMapDBSimple() {
-        this(new ByteArrayMap<V>());
+        this(new StringMap<V>());
     }
 
-    public HashMapDBSimple(ByteArrayMap<V> storage) {
+    public HashMapDBSimple(StringMap<V> storage) {
         this.m_storage = storage;
     }
 
@@ -24,7 +25,7 @@ public class HashMapDBSimple<V> implements DbSource<V> {
     public void close() {}
 
     @Override
-    public void delete(byte[] key) {
+    public void delete(String key) {
     	m_storage.remove(key);
     }
 
@@ -34,7 +35,7 @@ public class HashMapDBSimple<V> implements DbSource<V> {
     }
 
     @Override
-    public V get(byte[] key) {
+    public V get(String key) {
         return m_storage.get(key);
     }
 
@@ -43,7 +44,7 @@ public class HashMapDBSimple<V> implements DbSource<V> {
         return "in-memory";
     }
 
-    public Map<byte[], V> getStorage() {
+    public Map<String, V> getStorage() {
         return m_storage;
     }
 
@@ -56,12 +57,12 @@ public class HashMapDBSimple<V> implements DbSource<V> {
     }
 
     @Override
-    public Set<byte[]> keys() {
+    public Set<String> keys() {
         return getStorage().keySet();
     }
 
     @Override
-    public void put(byte[] key, V val) {
+    public void put(String key, V val) {
         if (val == null) {
             delete(key);
         } else {
@@ -73,8 +74,8 @@ public class HashMapDBSimple<V> implements DbSource<V> {
     public void setName(String name) {}
 
     @Override
-    public void updateBatch(Map<byte[], V> rows) {
-        for (Map.Entry<byte[], V> entry : rows.entrySet()) {
+    public void updateBatch(Map<String, V> rows) {
+        for (Map.Entry<String, V> entry : rows.entrySet()) {
             put(entry.getKey(), entry.getValue());
         }
     }

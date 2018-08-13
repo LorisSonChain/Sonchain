@@ -74,21 +74,23 @@ public class SonContractImpl implements SonContract {
         }
         Transaction tx = CallTransaction.createCallTransaction(0, 0, 100000000000000L,
                 Hex.toHexString(getAddress()), 0, func, convertArgs(args));
-        tx.sign(new byte[32]);
-        Repository repository = DataCenter.getSonChainImpl().
-        		getBlockChain().getRepository().getSnapshotTo(callBlock.getStateRoot()).startTracking();
+        //TODO
+        //tx.sign(new byte[32]);
+        //Repository repository = DataCenter.getSonChainImpl().
+        //		getBlockChain().getRepository().getSnapshotTo(callBlock.getStateRoot()).startTracking();
         try {
-            TransactionExecutor executor = new TransactionExecutor
-                    (tx, callBlock.getMinedBy(), repository, DataCenter.getSonChainImpl().getBlockChain().getBlockStore(),
-                    		DataCenter.getSonChainImpl().getBlockChain().getProgramInvokeFactory(), callBlock)
-                    .setLocalCall(true);
-            executor.init();
-            executor.execute();
-            executor.go();
-            executor.finalization();
-            return func.decodeResult(executor.getResult().getHReturn());
+            //TransactionExecutor executor = new TransactionExecutor
+            //        (tx, callBlock.getProducer(), repository, DataCenter.getSonChainImpl().getBlockChain().getBlockStore(),
+            //        		DataCenter.getSonChainImpl().getBlockChain().getProgramInvokeFactory(), callBlock)
+            //        .setLocalCall(true);
+            //executor.init();
+            //executor.execute();
+            //executor.go();
+            //executor.finalization();
+        	return null;
+            //return func.decodeResult(executor.getResult().getHReturn());
         } finally {
-            repository.rollback();
+            //repository.rollback();
         }
     }
 

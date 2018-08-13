@@ -4,7 +4,7 @@ import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
 
-import sonchain.blockchain.consensus.SonChainPeerNode;
+import sonchain.blockchain.consensus.SonChainProducerNode;
 import sonchain.blockchain.data.SonChainHostInfo;
 import sonchain.blockchain.util.RLP;
 import sonchain.blockchain.util.RLPElement;
@@ -19,14 +19,14 @@ public class BlockWrapper {
     private long m_importFailedAt = 0;
     private long m_receivedAt = 0;
     private boolean m_newBlock = false;
-    private SonChainPeerNode m_hostInfo = null;
+    private SonChainProducerNode m_hostInfo = null;
 
     
-    public BlockWrapper(Block block, SonChainPeerNode hostInfo) {
+    public BlockWrapper(Block block, SonChainProducerNode hostInfo) {
         this(block, false, hostInfo);
     }
     
-    public BlockWrapper(Block block, boolean newBlock, SonChainPeerNode hostInfo) {
+    public BlockWrapper(Block block, boolean newBlock, SonChainProducerNode hostInfo) {
     	m_block = block;
     	m_newBlock = newBlock;
     	m_hostInfo = hostInfo;
@@ -72,15 +72,15 @@ public class BlockWrapper {
         return m_importFailedAt;
     }
 
-    public SonChainPeerNode getNodeId() {
+    public SonChainProducerNode getNodeId() {
         return m_hostInfo;
     }
     
     public long getNumber() {
-        return m_block.getNumber();
+        return m_block.getBlockNumber();
     }
 
-    public byte[] getParentHash() {
+    public String getParentHash() {
         return m_block.getParentHash();
     }
 
@@ -119,20 +119,21 @@ public class BlockWrapper {
         byte[] receivedAtBytes = wrapper.get(2).getRLPData();
         byte[] newBlockBytes = wrapper.get(3).getRLPData();
 
-        m_block = new Block(blockBytes);
+		//TODO
+        //m_block = new Block(blockBytes);
         m_importFailedAt = importFailedBytes == null ? 0 : new BigInteger(1, importFailedBytes).longValue();
         m_receivedAt = receivedAtBytes == null ? 0 : new BigInteger(1, receivedAtBytes).longValue();
         byte newBlock = newBlockBytes == null ? 0 : new BigInteger(1, newBlockBytes).byteValue();
         m_newBlock = newBlock == 1;
         byte[] nodeBytes = wrapper.get(4).getRLPData();
-        m_hostInfo = SonChainPeerNode.fromBytes(nodeBytes);
+        m_hostInfo = SonChainProducerNode.fromBytes(nodeBytes);
     }
     
     public void resetImportFail() {
     	m_importFailedAt = 0;
     }
     
-    public boolean sentBy(SonChainPeerNode hostInfo) {
+    public boolean sentBy(SonChainProducerNode hostInfo) {
     	if(m_hostInfo.getHost().equals(hostInfo.getHost()) 
     			&& m_hostInfo.getPort() == hostInfo.getPort()){
     		return true;

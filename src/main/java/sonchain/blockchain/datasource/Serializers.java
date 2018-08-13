@@ -2,6 +2,7 @@ package sonchain.blockchain.datasource;
 
 import sonchain.blockchain.accounts.AccountState;
 import sonchain.blockchain.core.BlockHeader;
+import sonchain.blockchain.datasource.base.Serializer;
 import sonchain.blockchain.util.RLP;
 import sonchain.blockchain.util.Value;
 import sonchain.blockchain.vm.DataWord;
@@ -87,15 +88,23 @@ public class Serializers {
     /**
      * Trie node serializer (part of Ethereum spec)
      */
-    public final static Serializer<BlockHeader, byte[]> BlockHeaderSerializer = new Serializer<BlockHeader, byte[]>() {
+    public final static Serializer<BlockHeader, String> BlockHeaderSerializer = new Serializer<BlockHeader, String>() {
         @Override
-        public byte[] serialize(BlockHeader object) {
-            return object == null ? null : object.getEncoded();
+        public String serialize(BlockHeader object) {
+            return object == null ? null : object.toJson();
         }
 
         @Override
-        public BlockHeader deserialize(byte[] stream) {
-            return stream == null ? null : new BlockHeader(stream);
+        public BlockHeader deserialize(String stream) {
+        	if(stream == null){
+        		return null;
+        	}
+        	else
+        	{
+        		BlockHeader header = new BlockHeader();
+        		header.jsonParse(stream);
+        		return header;
+        	}
         }
     };
 }

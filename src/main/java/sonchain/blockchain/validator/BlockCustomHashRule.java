@@ -16,7 +16,7 @@ public class BlockCustomHashRule extends BlockHeaderRule {
     @Override
     public ValidationResult validate(BlockHeader header) {
         if (!FastByteComparisons.equal(header.getHash(), m_blockHash)) {
-            return fault("Block " + header.getNumber() + " hash constraint violated. Expected:" +
+            return fault("Block " + header.getBlockNumber() + " hash constraint violated. Expected:" +
                     Hex.toHexString(m_blockHash) + ", got: " + Hex.toHexString(header.getHash()));
         }
         return Success;

@@ -3,18 +3,18 @@ package sonchain.blockchain.datasource.redis;
 import java.util.Map;
 import java.util.Set;
 
-import sonchain.blockchain.datasource.DbSource;
+import sonchain.blockchain.datasource.base.DbSource;
 
-public class RedisDbDataSource implements DbSource<byte[]> {
+public class RedisDbDataSource implements DbSource<String> {
 
 	@Override
-	public void updateBatch(Map<byte[], byte[]> rows) {
+	public void updateBatch(Map<String, String> rows) {
 		// TODO Auto-generated method stub
 		
 	}
 
 	@Override
-	public void delete(byte[] key) {
+	public void delete(String key) {
 		// TODO Auto-generated method stub
 		
 	}
@@ -26,13 +26,13 @@ public class RedisDbDataSource implements DbSource<byte[]> {
 	}
 
 	@Override
-	public byte[] get(byte[] key) {
+	public String get(String key) {
 		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
-	public void put(byte[] key, byte[] val) {
+	public void put(String key, String val) {
 		// TODO Auto-generated method stub
 		
 	}
@@ -62,7 +62,7 @@ public class RedisDbDataSource implements DbSource<byte[]> {
 	}
 
 	@Override
-	public Set<byte[]> keys() throws RuntimeException {
+	public Set<String> keys() throws RuntimeException {
 		// TODO Auto-generated method stub
 		return null;
 	}

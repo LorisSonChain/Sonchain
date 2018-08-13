@@ -5,24 +5,23 @@ import java.util.Set;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import sonchain.blockchain.datasource.DbSource;
+import sonchain.blockchain.datasource.base.DbSource;
 import sonchain.blockchain.util.CLock;
-import sonchain.blockchain.util.ByteArrayMap;
-
+import sonchain.blockchain.util.StringMap;
 
 public class HashMapDB<V> implements DbSource<V> {
 
-    protected Map<byte[], V> m_storage = null;
+    protected Map<String, V> m_storage = null;
 
     protected ReadWriteLock m_rwLock = new ReentrantReadWriteLock();
     protected CLock m_readLock = new CLock(m_rwLock.readLock());
     protected CLock m_writeLock = new CLock(m_rwLock.writeLock());
 
     public HashMapDB() {
-        this(new ByteArrayMap<V>());
+        this(new StringMap<V>());
     }
 
-    public HashMapDB(ByteArrayMap<V> storage) {
+    public HashMapDB(StringMap<V> storage) {
     	m_storage = storage;
     }
 
@@ -30,7 +29,7 @@ public class HashMapDB<V> implements DbSource<V> {
     public void close() {}
 
     @Override
-    public void delete(byte[] key) {
+    public void delete(String key) {
         try (CLock l = m_writeLock.lock()) {
         	m_storage.remove(key);
         }
@@ -42,7 +41,7 @@ public class HashMapDB<V> implements DbSource<V> {
     }
 
     @Override
-    public V get(byte[] key) {
+    public V get(String key) {
         try (CLock l = m_readLock.lock()) {
             return m_storage.get(key);
         }
@@ -53,7 +52,7 @@ public class HashMapDB<V> implements DbSource<V> {
         return "in-memory";
     }
 
-    public Map<byte[], V> getStorage() {
+    public Map<String, V> getStorage() {
         return m_storage;
     }
 
@@ -66,14 +65,14 @@ public class HashMapDB<V> implements DbSource<V> {
     }
 
     @Override
-    public Set<byte[]> keys() {
+    public Set<String> keys() {
         try (CLock l = m_readLock.lock()) {
             return getStorage().keySet();
         }
     }
 
     @Override
-    public void put(byte[] key, V val) {
+    public void put(String key, V val) {
         if (val == null) {
             delete(key);
         } else {
@@ -87,9 +86,9 @@ public class HashMapDB<V> implements DbSource<V> {
     public void setName(String name) {}
 
     @Override
-    public void updateBatch(Map<byte[], V> rows) {
+    public void updateBatch(Map<String, V> rows) {
         try (CLock l = m_writeLock.lock()) {
-            for (Map.Entry<byte[], V> entry : rows.entrySet()) {
+            for (Map.Entry<String, V> entry : rows.entrySet()) {
                 put(entry.getKey(), entry.getValue());
             }
         }

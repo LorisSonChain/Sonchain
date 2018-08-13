@@ -33,14 +33,14 @@ public class Genesis extends Block {
 	/**
 	 * Constructor
 	 * @param parentHash
-	 * @param minedBy
+	 * @param producer
 	 * @param number
 	 * @param timestamp
 	 * @param extraData
 	 * @param mixHash
 	 */
-	public Genesis(byte[] parentHash, byte[] minedBy, long number, long timestamp,  byte[] extraData, byte[] mixHash) {
-		super(parentHash, minedBy, number, timestamp, extraData, null);
+	public Genesis(String parentHash, String producer, long number, BlockTimestamp timestamp,  String extraData, String mixHash) {
+		super(parentHash, producer, number, timestamp, extraData, null);
 	}
 
 //	public static Genesis getInstance(SystemProperties config) {

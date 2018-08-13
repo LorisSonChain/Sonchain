@@ -83,7 +83,7 @@ public class ECKey implements Serializable {
     }
 
     private final PrivateKey m_privKey;
-    protected final ECPoint m_pub;    
+    protected final ECPoint m_publicKey;    
     private final Provider m_provider;
 
     // Transient because it's calculated on demand.
@@ -116,9 +116,9 @@ public class ECKey implements Serializable {
 
         final PublicKey pubKey = keyPair.getPublic();
         if (pubKey instanceof BCECPublicKey) {
-        	m_pub = ((BCECPublicKey) pubKey).getQ();
+        	m_publicKey = ((BCECPublicKey) pubKey).getQ();
         } else if (pubKey instanceof ECPublicKey) {
-        	m_pub = ExtractPublicKey((ECPublicKey) pubKey);
+        	m_publicKey = ExtractPublicKey((ECPublicKey) pubKey);
         } else {
             throw new AssertionError(
                 "Expected Provider " + provider.getName() +
@@ -134,7 +134,7 @@ public class ECKey implements Serializable {
         return privKey instanceof ECPrivateKey || privKey.getAlgorithm().equals("EC");
     }
 
-    public ECKey(Provider provider, @Nullable PrivateKey privKey, ECPoint pub) {
+    public ECKey(Provider provider, @Nullable PrivateKey privKey, ECPoint publicKey) {
         this.m_provider = provider;
 
         if (privKey == null || isECPrivateKey(privKey)) {
@@ -146,10 +146,10 @@ public class ECKey implements Serializable {
                 " and algorithm " + privKey.getAlgorithm());
         }
 
-        if (pub == null) {
+        if (publicKey == null) {
             throw new IllegalArgumentException("Public key may not be null");
         } else {
-            this.m_pub = pub;
+            this.m_publicKey = publicKey;
         }
     }
     
@@ -210,17 +210,17 @@ public class ECKey implements Serializable {
     }
 
     public ECKey decompress() {
-        if (!m_pub.isCompressed())
+        if (!m_publicKey.isCompressed())
             return this;
         else
-            return new ECKey(this.m_provider, this.m_privKey, decompressPoint(m_pub));
+            return new ECKey(this.m_provider, this.m_privKey, decompressPoint(m_publicKey));
     }
     
     public ECKey compress() {
-        if (m_pub.isCompressed())
+        if (m_publicKey.isCompressed())
             return this;
         else
-            return new ECKey(this.m_provider, this.m_privKey, compressPoint(m_pub));
+            return new ECKey(this.m_provider, this.m_privKey, compressPoint(m_publicKey));
     }
     
     public boolean isPubKeyOnly() {
@@ -247,7 +247,7 @@ public class ECKey implements Serializable {
 
     public byte[] getAddress() {
         if (m_pubKeyHash == null) {
-        	m_pubKeyHash = computeAddress(this.m_pub);
+        	m_pubKeyHash = computeAddress(this.m_publicKey);
         }
         return m_pubKeyHash;
     }
@@ -259,7 +259,7 @@ public class ECKey implements Serializable {
 
     public byte[] getNodeId() {
         if (m_nodeId == null) {
-        	m_nodeId  = pubBytesWithoutFormat(this.m_pub);
+        	m_nodeId  = pubBytesWithoutFormat(this.m_publicKey);
         }
         return m_nodeId;
     }
@@ -273,11 +273,11 @@ public class ECKey implements Serializable {
     }
 
     public byte[] getPubKey() {
-        return m_pub.getEncoded(/* compressed */ false);
+        return m_publicKey.getEncoded(/* compressed */ false);
     }
 
     public ECPoint getPubKeyPoint() {
-        return m_pub;
+        return m_publicKey;
     }
 
     public BigInteger getPrivKey() {
@@ -291,12 +291,12 @@ public class ECKey implements Serializable {
     }
 
     public boolean isCompressed() {
-        return m_pub.isCompressed();
+        return m_publicKey.isCompressed();
     }
 
     public String toString() {
         StringBuilder b = new StringBuilder();
-        b.append("pub:").append(Hex.toHexString(m_pub.getEncoded(false)));
+        b.append("pub:").append(Hex.toHexString(m_publicKey.getEncoded(false)));
         return b.toString();
     }
 
@@ -420,6 +420,22 @@ public class ECKey implements Serializable {
             return new String(Base64.encode(sigData), Charset.forName("UTF-8"));
         }
 
+        public static ECDSASignature decodeFromBase64(String base64) {
+            try {
+            	byte[] bytes = Base64.decode(base64);
+            	if(bytes == null || bytes.length != 65){
+            		return null;
+            	}
+            	byte v = bytes[0];
+            	byte[] r = new byte[32];
+            	byte[] s = new byte[32];
+            	System.arraycopy(bytes, 1, r, 0, 32);
+            	System.arraycopy(bytes, 33, s, 0, 32);
+                return ECDSASignature.fromComponents(r, s, v);
+            } finally {
+            }
+        }
+
         public byte[] toByteArray() {
             final byte fixedV = this.v >= 27
                     ? (byte) (this.v - 27)
@@ -486,7 +502,7 @@ public class ECKey implements Serializable {
         ECDSASignature sig = doSign(messageHash);
         // Now we have to work backwards to figure out the recId needed to recover the signature.
         int recId = -1;
-        byte[] thisKey = this.m_pub.getEncoded(/* compressed */ false);
+        byte[] thisKey = this.m_publicKey.getEncoded(/* compressed */ false);
         for (int i = 0; i < 4; i++) {
             byte[] k = ECKey.recoverPubBytesFromSignature(i, sig, messageHash);
             if (k != null && Arrays.equals(k, thisKey)) {
@@ -603,7 +619,7 @@ public class ECKey implements Serializable {
     }
 
     public boolean isPubKeyCanonical() {
-        return isPubKeyCanonical(m_pub.getEncoded(/* uncompressed */ false));
+        return isPubKeyCanonical(m_publicKey.getEncoded(/* uncompressed */ false));
     }
 
     public static boolean isPubKeyCanonical(byte[] pubkey) {
@@ -636,8 +652,9 @@ public class ECKey implements Serializable {
             return null;
         }
         ECPoint R = decompressKey(x, (recId & 1) == 1);
-        if (!R.multiply(n).isInfinity())
-            return null;
+        if (!R.multiply(n).isInfinity()){
+            return null;        	
+        }
         BigInteger e = new BigInteger(1, messageHash);
         BigInteger eInv = BigInteger.ZERO.subtract(e).mod(n);
         BigInteger rInv = sig.r.modInverse(n);
@@ -687,14 +704,19 @@ public class ECKey implements Serializable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || !(o instanceof ECKey)) return false;
-
+        if (this == o){
+        	return true;
+        }
+        if (o == null || !(o instanceof ECKey)){
+        	return false;
+        }
         ECKey ecKey = (ECKey) o;
-
-        if (m_privKey != null && !m_privKey.equals(ecKey.m_privKey)) return false;
-        if (m_pub != null && !m_pub.equals(ecKey.m_pub)) return false;
-
+        if (m_privKey != null && !m_privKey.equals(ecKey.m_privKey)) {
+        	return false;
+        }
+        if (m_publicKey != null && !m_publicKey.equals(ecKey.m_publicKey)){
+        	return false;
+        }
         return true;
     }
 
@@ -708,6 +730,8 @@ public class ECKey implements Serializable {
     }
 
     private static void check(boolean test, String message) {
-        if (!test) throw new IllegalArgumentException(message);
+        if (!test) {
+        	throw new IllegalArgumentException(message);
+        }
     }
 }

@@ -36,9 +36,10 @@ public class SyncManager extends BlockDownloader {
 	private ExecutorPipeline<BlockWrapper, BlockWrapper> exec1 = new ExecutorPipeline<>(4, 1000, true,
 			new Functional.Function<BlockWrapper, BlockWrapper>() {
 				public BlockWrapper apply(BlockWrapper blockWrapper) {
-					for (Transaction tx : blockWrapper.getBlock().getTransactionsList()) {
-						tx.getSender();
-					}
+                	//TODO
+//					for (Transaction tx : blockWrapper.getBlock().getTransactionsList()) {
+//						tx.getSenderAddress();
+//					}
 					return blockWrapper;
 				}
 			}, new Functional.Consumer<Throwable>() {
@@ -102,7 +103,7 @@ public class SyncManager extends BlockDownloader {
             if (syncStatus.getStage() == SyncStatus.SyncStage.Complete) {
                 return getSyncStateImpl();
             } else {
-                return new SyncStatus(syncStatus, blockchain.getBestBlock().getNumber(), getLastKnownBlockNumber());
+                return new SyncStatus(syncStatus, blockchain.getBestBlock().getBlockNumber(), getLastKnownBlockNumber());
             }
         } else {
             return getSyncStateImpl();
@@ -111,11 +112,11 @@ public class SyncManager extends BlockDownloader {
 
     private SyncStatus getSyncStateImpl() {
         if (!DataCenter.m_config.m_syncEnabled)
-            return new SyncStatus(SyncStatus.SyncStage.Off, 0, 0, blockchain.getBestBlock().getNumber(),
-                    blockchain.getBestBlock().getNumber());
+            return new SyncStatus(SyncStatus.SyncStage.Off, 0, 0, blockchain.getBestBlock().getBlockNumber(),
+                    blockchain.getBestBlock().getBlockNumber());
 
         return new SyncStatus(isSyncDone() ? SyncStatus.SyncStage.Complete : SyncStatus.SyncStage.Regular,
-                0, 0, blockchain.getBestBlock().getNumber(), getLastKnownBlockNumber());
+                0, 0, blockchain.getBestBlock().getBlockNumber(), getLastKnownBlockNumber());
     }
     
     public boolean isSyncDone() {
@@ -123,7 +124,7 @@ public class SyncManager extends BlockDownloader {
     }
 
     public long getLastKnownBlockNumber() {
-        long ret = Math.max(blockchain.getBestBlock().getNumber(), m_lastKnownBlockNumber);
+        long ret = Math.max(blockchain.getBestBlock().getBlockNumber(), m_lastKnownBlockNumber);
 //        for (Channel channel : pool.getActivePeers()) {
 //            BlockIdentifier bestKnownBlock = channel.getEthHandler().getBestKnownBlock();
 //            if (bestKnownBlock != null) {

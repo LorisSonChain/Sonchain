@@ -82,9 +82,9 @@ public class TransactionExecutor {
 		//TODO
 		byte[] code = m_track.getCode(targetAddress);
 		BigInteger endowment = toBI(m_tx.getValue());
-		m_logger.debug("call SenderAddress:" + Hex.toHexString(m_tx.getSender())
+		m_logger.debug("call SenderAddress:" + Hex.toHexString(m_tx.getSenderAddress())
 			+ " targetAddress: " + Hex.toHexString(targetAddress) + " Value：" + endowment);
-		transfer(m_track, m_tx.getSender(), targetAddress, endowment);
+		transfer(m_track, m_tx.getSenderAddress(), targetAddress, endowment);
 		m_touchedAccounts.add(targetAddress);
 		m_logger.debug("call end");
 	}
@@ -104,20 +104,21 @@ public class TransactionExecutor {
 			m_readyToExecute = true;
 			return;
 		}
-		BigInteger reqNonce = m_track.getNonce(m_tx.getSender());
+		BigInteger reqNonce = m_track.getNonce(m_tx.getSenderAddress());
 		BigInteger txNonce = toBI(m_tx.getNonce());
-		m_logger.debug("Sender Balance SenderAddress:" + Hex.toHexString(m_tx.getSender())
+		m_logger.debug("Sender Balance SenderAddress:" + Hex.toHexString(m_tx.getSenderAddress())
 		+ " reqNonce: " + reqNonce + " txNonce：" + txNonce);
 		if (isNotEqual(reqNonce, txNonce)) {
 			execError(String.format("Invalid nonce: required: %s , tx.nonce: %s", reqNonce, txNonce));
 			return;
 		}
 
-		BigInteger senderBalance = m_track.getBalance(m_tx.getSender());
-		m_logger.debug("Sender Balance SenderAddress:" + Hex.toHexString(m_tx.getSender())
+		BigInteger senderBalance = m_track.getBalance(m_tx.getSenderAddress());
+		m_logger.debug("Sender Balance SenderAddress:" + Hex.toHexString(m_tx.getSenderAddress())
 				+ " Balance:" + senderBalance);
 		if (!m_blockchainConfig.acceptTransactionSignature(m_tx)) {
-			execError("Transaction signature not accepted: " + m_tx.getSignature());
+			//TODO
+			//execError("Transaction signature not accepted: " + m_tx.getSignature());
 			return;
 		}
 		m_readyToExecute = true;
@@ -130,7 +131,7 @@ public class TransactionExecutor {
 			return;
 		}
 		if (!m_localCall) {
-			m_track.increaseNonce(m_tx.getSender());
+			m_track.increaseNonce(m_tx.getSenderAddress());
 		}
 		if (m_tx.isContractCreation()) {
 			create();
@@ -150,18 +151,18 @@ public class TransactionExecutor {
 		m_cacheTrack.addBalance(newContractAddress, oldBalance);
 		m_cacheTrack.increaseNonce(newContractAddress);
 		
-		if(ArrayUtils.isEmpty(m_tx.getData())){
+		//if(ArrayUtils.isEmpty(m_tx.getData())){
 			//m_result.spendGas(basicTxCost);
-		}
-		else{
+		//}
+		//else{
 
             ProgramInvoke programInvoke = m_programInvokeFactory.createProgramInvoke(m_tx, m_currentBlock, m_cacheTrack, m_blockStore);
             //m_vm = new VM(config);
             //m_program = new Program(m_tx.getData(), programInvoke, m_tx, config).withCommonConfig(m_commonConfig);
 			
-		}
+		//}
 		BigInteger endowment = toBI(m_tx.getValue());
-		BIUtil.transfer(m_cacheTrack, m_tx.getSender(), newContractAddress, endowment);
+		BIUtil.transfer(m_cacheTrack, m_tx.getSenderAddress(), newContractAddress, endowment);
 		m_touchedAccounts.add(newContractAddress);
 		m_logger.debug("create end");
 	}
@@ -173,7 +174,7 @@ public class TransactionExecutor {
 			return;
 		}
 		try {
-			String err = DataCenter.m_config.getConfigForBlock(m_currentBlock.getNumber())
+			String err = DataCenter.m_config.getConfigForBlock(m_currentBlock.getBlockNumber())
 					.validateTransactionChanges(m_blockStore, m_currentBlock, m_tx, null);
 
 			m_logger.debug("go start validateTransactionChanges err:" + err);
@@ -212,8 +213,8 @@ public class TransactionExecutor {
 			if (m_result != null) {
 				byte[] addr = m_tx.isContractCreation() ? m_tx.getContractAddress() : m_tx.getReceiveAddress();
 	
-				summaryBuilder.deletedAccounts(m_result.getDeleteAccounts())
-						.internalTransactions(m_result.getInternalTransactions());
+				//summaryBuilder.deletedAccounts(m_result.getDeleteAccounts())
+				//		.internalTransactions(m_result.getInternalTransactions());
 	
 				ContractDetails contractDetails = m_track.getContractDetails(addr);
 				if (contractDetails != null) {
@@ -261,9 +262,11 @@ public class TransactionExecutor {
 	public TransactionReceipt getReceipt() {
 		if (m_receipt == null) {
 			m_receipt = new TransactionReceipt();
-			m_receipt.setTransaction(m_tx);
+	        //TODO
+			//m_receipt.setTransaction(m_tx);
 			m_receipt.setLogInfoList(getVMLogs());
-			m_receipt.setExecutionResult(getResult().getHReturn());
+	        //TODO
+			//m_receipt.setExecutionResult(getResult().getHReturn());
 			m_receipt.setError(m_execError);
 			// receipt.setPostTxState(track.getRoot()); // TODO later when
 			// RepositoryTrack.getRoot() is implemented
@@ -282,7 +285,7 @@ public class TransactionExecutor {
 	public TransactionExecutor withCommonConfig(CommonConfig commonConfig) {
 		m_logger.debug("withCommonConfig start");
 		m_commonConfig = commonConfig;
-		m_blockchainConfig = DataCenter.m_config.getConfigForBlock(m_currentBlock.getNumber());
+		m_blockchainConfig = DataCenter.m_config.getConfigForBlock(m_currentBlock.getBlockNumber());
 		m_logger.debug("withCommonConfig end");
 		return this;
 	}

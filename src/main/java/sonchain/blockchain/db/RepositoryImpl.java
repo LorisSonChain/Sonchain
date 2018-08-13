@@ -12,11 +12,11 @@ import sonchain.blockchain.accounts.AccountState;
 import sonchain.blockchain.core.Block;
 import sonchain.blockchain.core.Repository;
 import sonchain.blockchain.crypto.HashUtil;
-import sonchain.blockchain.datasource.CachedSource;
 import sonchain.blockchain.datasource.MultiCache;
 import sonchain.blockchain.datasource.ReadWriteCache;
-import sonchain.blockchain.datasource.Source;
 import sonchain.blockchain.datasource.WriteCache;
+import sonchain.blockchain.datasource.base.CachedSource;
+import sonchain.blockchain.datasource.base.Source;
 import sonchain.blockchain.service.DataCenter;
 import sonchain.blockchain.util.ByteUtil;
 import sonchain.blockchain.util.FastByteComparisons;
@@ -31,7 +31,7 @@ public class RepositoryImpl implements Repository, sonchain.blockchain.facade.Re
 
 	public static final Logger m_logger = Logger.getLogger(RepositoryImpl.class);
     protected RepositoryImpl m_parent = null;
-    protected Source<byte[], AccountState> m_accountStateCache = null;
+    protected Source<String, AccountState> m_accountStateCache = null;
     protected Source<byte[], byte[]> m_codeCache = null;
     protected MultiCache<? extends CachedSource<DataWord, DataWord>> m_storageCache = null;
 
@@ -47,7 +47,7 @@ public class RepositoryImpl implements Repository, sonchain.blockchain.facade.Re
      * @param codeCache
      * @param storageCache
      */
-    public RepositoryImpl(Source<byte[], AccountState> accountStateCache, Source<byte[], byte[]> codeCache,
+    public RepositoryImpl(Source<String, AccountState> accountStateCache, Source<byte[], byte[]> codeCache,
                           MultiCache<? extends CachedSource<DataWord, DataWord>> storageCache) {
         init(accountStateCache, codeCache, storageCache);
     }
@@ -57,12 +57,13 @@ public class RepositoryImpl implements Repository, sonchain.blockchain.facade.Re
      */
     @Override
     public synchronized BigInteger addBalance(byte[] addr, BigInteger value) {
-        m_logger.debug("addBalance start address:" + ByteUtil.toHexString(addr) + "[value:]" + value.toString());
+    	String strAddress = Hex.toHexString(addr);
+        m_logger.debug("addBalance start address:" + strAddress + "[value:]" + value.toString());
         AccountState accountState = getOrCreateAccountState(addr);
-        m_accountStateCache.put(addr, accountState.withBalanceIncrement(value));
+        m_accountStateCache.put(strAddress, accountState.withBalanceIncrement(value));
         accountState = getOrCreateAccountState(addr);
         BigInteger balance = accountState.getBalance();
-        m_logger.debug("addBalance end address:" + ByteUtil.toHexString(addr) + "[balance:]" + balance.toString());
+        m_logger.debug("addBalance end address:" + strAddress + "[balance:]" + balance.toString());
         return balance;
     }
 
@@ -75,7 +76,8 @@ public class RepositoryImpl implements Repository, sonchain.blockchain.facade.Re
         	+ "[key:]" + ByteUtil.toHexString(key.getData())
         	+ "[value:]" + ByteUtil.toHexString(value.getData()));
     	getOrCreateAccountState(addr);
-        Source<DataWord, DataWord> contractStorage = m_storageCache.get(addr);
+    	String strAddress = Hex.toHexString(addr);
+        Source<DataWord, DataWord> contractStorage = m_storageCache.get(strAddress);
         contractStorage.put(key, value.isZero() ? null : value);
         m_logger.debug("addStorageRow end address:" + ByteUtil.toHexString(addr) 
         		+ "[key:]" + ByteUtil.toHexString(key.getData())
@@ -112,11 +114,12 @@ public class RepositoryImpl implements Repository, sonchain.blockchain.facade.Re
      */
     @Override
     public synchronized AccountState createAccount(byte[] addr) {
-        m_logger.debug("createAccount start address:" + ByteUtil.toHexString(addr) + "[Balance:]0");
+    	String strAddress = Hex.toHexString(addr);
+        m_logger.debug("createAccount start address:" + strAddress + "[Balance:]0");
         AccountState state = new AccountState(DataCenter.m_config.getCommonConstants().getInitialNonce(),
                 BigInteger.ZERO);
-        m_accountStateCache.put(addr, state);
-        m_logger.debug("createAccount end address:" + ByteUtil.toHexString(addr) + "[Balance:]0");
+        m_accountStateCache.put(strAddress, state);
+        m_logger.debug("createAccount end address:" + strAddress + "[Balance:]0");
         return state;
     }
 
@@ -125,10 +128,11 @@ public class RepositoryImpl implements Repository, sonchain.blockchain.facade.Re
      */
     @Override
     public synchronized void delete(byte[] addr) {
-        m_logger.debug("delete start address:" + ByteUtil.toHexString(addr));
-    	m_accountStateCache.delete(addr);
-    	m_storageCache.delete(addr);
-        m_logger.debug("delete end address:" + ByteUtil.toHexString(addr));
+    	String strAddress = Hex.toHexString(addr);
+        m_logger.debug("delete start address:" + strAddress);
+    	m_accountStateCache.delete(strAddress);
+    	m_storageCache.delete(strAddress);
+        m_logger.debug("delete end address:" + strAddress);
     }
 
     /**
@@ -171,7 +175,8 @@ public class RepositoryImpl implements Repository, sonchain.blockchain.facade.Re
      */
     @Override
     public synchronized AccountState getAccountState(byte[] addr) {
-        return m_accountStateCache.get(addr);
+    	String strAddress = Hex.toHexString(addr);
+        return m_accountStateCache.get(strAddress);
     }
 
     /**
@@ -233,8 +238,9 @@ public class RepositoryImpl implements Repository, sonchain.blockchain.facade.Re
      * @return
      */
     synchronized AccountState getOrCreateAccountState(byte[] addr) {
-        m_logger.debug("getOrCreateAccountState start address:" + ByteUtil.toHexString(addr));
-        AccountState ret = m_accountStateCache.get(addr);
+    	String strAddress = Hex.toHexString(addr);
+        m_logger.debug("getOrCreateAccountState start address:" + strAddress);
+        AccountState ret = m_accountStateCache.get(strAddress);
         if (ret == null) {
             m_logger.debug("getOrCreateAccountState not exist create new");
             ret = createAccount(addr);
@@ -290,7 +296,8 @@ public class RepositoryImpl implements Repository, sonchain.blockchain.facade.Re
     public synchronized DataWord getStorageValue(byte[] addr, DataWord key) {
         m_logger.debug("getStorageValue start address:" + ByteUtil.toHexString(addr));
         AccountState accountState = getAccountState(addr);
-        return accountState == null ? null : m_storageCache.get(addr).get(key);
+    	String strAddress = Hex.toHexString(addr);
+        return accountState == null ? null : m_storageCache.get(strAddress).get(key);
     }
 
     /**
@@ -318,12 +325,13 @@ public class RepositoryImpl implements Repository, sonchain.blockchain.facade.Re
      */
     @Override
     public synchronized BigInteger increaseNonce(byte[] addr) {
-        m_logger.debug("increaseNonce start address:" + Hex.toHexString(addr));
+    	String strAddress = Hex.toHexString(addr);
+        m_logger.debug("increaseNonce start address:" + strAddress);
         AccountState accountState = getOrCreateAccountState(addr);
-        m_accountStateCache.put(addr, accountState.withIncrementedNonce());
+        m_accountStateCache.put(strAddress, accountState.withIncrementedNonce());
         accountState = getOrCreateAccountState(addr);
         BigInteger nonce = accountState.getNonce();
-        m_logger.debug("increaseNonce end address:" + Hex.toHexString(addr) + " Nonce:" + nonce);
+        m_logger.debug("increaseNonce end address:" + strAddress + " Nonce:" + nonce);
         return accountState.getNonce();
     }
 
@@ -333,7 +341,7 @@ public class RepositoryImpl implements Repository, sonchain.blockchain.facade.Re
      * @param codeCache
      * @param storageCache
      */
-    protected void init(Source<byte[], AccountState> accountStateCache, Source<byte[], byte[]> codeCache,
+    protected void init(Source<String, AccountState> accountStateCache, Source<byte[], byte[]> codeCache,
                         MultiCache<? extends CachedSource<DataWord, DataWord>> storageCache) {
         m_logger.debug("init start ");
         m_accountStateCache = accountStateCache;
@@ -391,11 +399,12 @@ public class RepositoryImpl implements Repository, sonchain.blockchain.facade.Re
      */
     @Override
     public synchronized void saveCode(byte[] addr, byte[] code) {
-        m_logger.debug("saveCode start ");
+    	String strAddress = Hex.toHexString(addr);
+        m_logger.debug("saveCode start address:" + strAddress);
         byte[] codeHash = HashUtil.sha3(code);
         m_codeCache.put(codeHash, code);
         AccountState accountState = getOrCreateAccountState(addr);
-        m_accountStateCache.put(addr, accountState.withCodeHash(codeHash));
+        m_accountStateCache.put(strAddress, accountState.withCodeHash(codeHash));
     }
 
     /**
@@ -403,9 +412,10 @@ public class RepositoryImpl implements Repository, sonchain.blockchain.facade.Re
      */
     @Override
     public synchronized BigInteger setNonce(byte[] addr, BigInteger nonce) {
-        m_logger.debug("setNonce start ");
+    	String strAddress = Hex.toHexString(addr);
+        m_logger.debug("setNonce start address:" + strAddress);
         AccountState accountState = getOrCreateAccountState(addr);
-        m_accountStateCache.put(addr, accountState.withNonce(nonce));
+        m_accountStateCache.put(strAddress, accountState.withNonce(nonce));
         accountState = getOrCreateAccountState(addr);
         BigInteger retNonce = accountState.getNonce();
         m_logger.debug("increaseNonce end address:" + Hex.toHexString(addr) + " Nonce:" + retNonce);
@@ -417,17 +427,18 @@ public class RepositoryImpl implements Repository, sonchain.blockchain.facade.Re
      */
     @Override
     public synchronized RepositoryImpl startTracking() {
+    	//TODO
         m_logger.debug("startTracking start ");
-        ReadWriteCache<byte[], AccountState> trackAccountStateCache = new ReadWriteCache.BytesKey<>(m_accountStateCache,
-                WriteCache.CacheType.SIMPLE);
-        Source<byte[], byte[]> trackCodeCache = new WriteCache.BytesKey<>(m_codeCache, WriteCache.CacheType.SIMPLE);
-        MultiCache<CachedSource<DataWord, DataWord>> trackStorageCache = new MultiCache(m_storageCache) {
-            @Override
-            protected CachedSource create(byte[] key, CachedSource srcCache) {
-                return new WriteCache<>(srcCache, WriteCache.CacheType.SIMPLE);
-            }
-        };
-        RepositoryImpl ret = new RepositoryImpl(trackAccountStateCache, trackCodeCache, trackStorageCache);
+//        ReadWriteCache<String, AccountState> trackAccountStateCache = new ReadWriteCache.BytesKey<>(m_accountStateCache,
+//                WriteCache.CacheType.SIMPLE);
+//        Source<byte[], byte[]> trackCodeCache = new WriteCache.BytesKey<>(m_codeCache, WriteCache.CacheType.SIMPLE);
+//        MultiCache<CachedSource<DataWord, DataWord>> trackStorageCache = new MultiCache(m_storageCache) {
+//            @Override
+//            protected CachedSource create(byte[] key, CachedSource srcCache) {
+//                return new WriteCache<>(srcCache, WriteCache.CacheType.SIMPLE);
+//            }
+//        };
+        RepositoryImpl ret = null;//new RepositoryImpl(trackAccountStateCache, trackCodeCache, trackStorageCache);
         ret.m_parent = this;
         m_logger.debug("startTracking end ");
         return ret;
@@ -453,7 +464,8 @@ public class RepositoryImpl implements Repository, sonchain.blockchain.facade.Re
     		HashMap<ByteArrayWrapper, ContractDetails> contractDetailes) {
         m_logger.debug("updateBatch start ");
         for (Map.Entry<ByteArrayWrapper, AccountState> entry : accountStates.entrySet()) {
-        	m_accountStateCache.put(entry.getKey().getData(), entry.getValue());
+        	String strKey = Hex.toHexString(entry.getKey().getData());
+        	m_accountStateCache.put(strKey, entry.getValue());
         }
         for (Map.Entry<ByteArrayWrapper, ContractDetails> entry : contractDetailes.entrySet()) {
             ContractDetails details = getContractDetails(entry.getKey().getData());

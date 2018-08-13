@@ -99,6 +99,10 @@ public final class Numeric {
         return value.toString(16);
     }
 
+    public static String toHexStringWithPrefix(byte[] input) {
+        return toHexString(input, 0, input.length, true);
+    }
+    
     public static String toHexStringNoPrefix(byte[] input) {
         return toHexString(input, 0, input.length, false);
     }

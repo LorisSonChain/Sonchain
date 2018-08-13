@@ -1,21 +1,24 @@
 package sonchain.blockchain.core;
 
+import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import org.apache.log4j.Logger;
 import org.bouncycastle.util.Arrays;
 import org.bouncycastle.util.encoders.Hex;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
 import sonchain.blockchain.service.DataCenter;
-import sonchain.blockchain.trie.Trie;
-import sonchain.blockchain.trie.TrieImpl;
 import sonchain.blockchain.util.ByteUtil;
-import sonchain.blockchain.util.RLP;
-import sonchain.blockchain.util.RLPElement;
-import sonchain.blockchain.util.RLPList;
-import lord.common.json.EasyJSONDataUtil;
+import sonchain.blockchain.util.Numeric;
 
 /**
  * The Define of Block
@@ -23,8 +26,9 @@ import lord.common.json.EasyJSONDataUtil;
  * @author GAIA
  *
  */
-public class Block {
+public class Block implements IJson{
 
+	public static final Logger m_logger = Logger.getLogger(Block.class);
 	/**
 	 * Constructor
 	 */
@@ -36,54 +40,53 @@ public class Block {
 	 * 
 	 * @param rawData
 	 */
-	public Block(byte[] rawData) {
+	public Block(String jsonStr) {
+		jsonParse(jsonStr);
 		// logger.debug("new from [" + Hex.toHexString(rawData) + "]");
-		m_rlpEncoded = rawData;
+		//m_rlpEncoded = rawData;
 	}
 
 	/**
 	 * Constructor
 	 * 
 	 * @param parentHash
-	 * @param minedBy
+	 * @param producer
 	 * @param number
 	 * @param timestamp
 	 * @param extraData
-	 * @param receiptsRoot
 	 * @param transactionsRoot
 	 * @param stateRoot
 	 * @param transactionsList
 	 */
-	public Block(byte[] parentHash, byte[] minedBy, long number, long timestamp, byte[] extraData, byte[] receiptsRoot,
-			byte[] transactionsRoot, byte[] stateRoot, List<Transaction> transactionsList) {
-		this(parentHash, minedBy, number, timestamp, extraData, transactionsList);
-		m_header.setTxTrieRoot((DataCenter.getSonChainImpl().getBlockChain().calcTxTrie(transactionsList)));
-		if (!Hex.toHexString(transactionsRoot).equals(Hex.toHexString(m_header.getTxTrieRoot()))) {
+	public Block(String parentHash, String producer, long number, BlockTimestamp timestamp, String extraData,
+			String transactionsRoot, String stateRoot, List<TransactionReceipt> transactionsList) {
+		this(parentHash, producer, number, timestamp, extraData, transactionsList);
+		m_header.setMerkleTxRoot(Hex.toHexString((DataCenter.getSonChainImpl().getBlockChain().calcTxTrie(transactionsList))));
+		if (!transactionsRoot.equals(m_header.getMerkleTxRoot())) {
 			// logger.debug("Transaction root miss-calculate, block: {}",
 			// getNumber());
 		}
 		m_header.setStateRoot(stateRoot);
-		m_header.setReceiptsRoot(receiptsRoot);
+		//m_header.setReceiptTrieRoot(receiptsRoot);
 	}
 
 	/**
 	 * Constructor
 	 * 
 	 * @param parentHash
-	 * @param minedBy
+	 * @param producer
 	 * @param number
 	 * @param timestamp
 	 * @param extraData
 	 * @param transactionsList
 	 */
-	public Block(byte[] parentHash, byte[] minedBy, long number, long timestamp, byte[] extraData,
-			List<Transaction> transactionsList) {
-		m_header = new BlockHeader(parentHash, minedBy, number, timestamp, extraData);
+	public Block(String parentHash, String producer, long number, BlockTimestamp timestamp, String extraData,
+			List<TransactionReceipt> transactionsList) {
+		m_header = new BlockHeader(parentHash, producer, number, timestamp, extraData);
 		m_transactions = transactionsList;
 		if (m_transactions == null) {
 			m_transactions = new CopyOnWriteArrayList<>();
 		}
-		m_parsed = true;
 	}
 
 	/**
@@ -92,57 +95,46 @@ public class Block {
 	 * @param header
 	 * @param transactionsList
 	 */
-	public Block(BlockHeader header, List<Transaction> transactionsList) {
+	public Block(BlockHeader header, List<TransactionReceipt> transactionsList) {
 
-		this(header.getParentHash(), header.getMinedBy(), header.getNumber(), header.getTimestamp(),
+		this(header.getParentHash(), header.getProducer(), header.getBlockNumber(), header.getTimestamp(),
 				header.getExtraData(), transactionsList);
 	}
 
 	private BlockHeader m_header;
 
-	private boolean m_parsed = false;
-
-	private byte[] m_rlpEncoded = null;
-
-	private List<Transaction> m_transactions = new ArrayList<Transaction>();
+	private List<TransactionReceipt> m_transactions = new ArrayList<TransactionReceipt>();
 
 	public int getCount() {
 		return m_transactions.size();
 	}
 
 	public byte[] getHash() {
-		parseRLP();
 		return m_header.getHash();
 	}
 
 	public BlockHeader getHeader() {
-		parseRLP();
 		return m_header;
 	}
 
-	public byte[] getMinedBy() {
-		parseRLP();
-		return m_header.getMinedBy();
+	public String getProducer() {
+		return m_header.getProducer();
 	}
 
-	public byte[] getParentHash() {
-		parseRLP();
+	public String getParentHash() {
 		return m_header.getParentHash();
 	}
 
-	public byte[] getExtraData() {
-		parseRLP();
+	public String getExtraData() {
 		return m_header.getExtraData();
 	}
 
-	public void setExtraData(byte[] data) {
+	public void setExtraData(String data) {
 		m_header.setExtraData(data);
-		m_rlpEncoded = null;
 	}
 
-	public long getNumber() {
-		parseRLP();
-		return m_header.getNumber();
+	public long getBlockNumber() {
+		return m_header.getBlockNumber();
 	}
 
 	public int getSize() {
@@ -156,86 +148,55 @@ public class Block {
 		return m_transactions.size();
 	}
 
-	public byte[] getTxMerkleRoot() {
-		parseRLP();
-		return m_header.getTxTrieRoot();
+	public String getTxMerkleRoot() {
+		return m_header.getMerkleTxRoot();
+	}
+	
+	public String getActionRoot() {
+		return m_header.getActionRoot();
 	}
 
-	public byte[] getStateRoot() {
-		parseRLP();
+	public void setActionRoot(String actionRoot) {
+		m_header.setActionRoot(actionRoot);
+	}
+
+	public String getStateRoot() {
 		return m_header.getStateRoot();
 	}
 
-	public void setStateRoot(byte[] stateRoot) {
-		parseRLP();
+	public void setStateRoot(String stateRoot) {
 		m_header.setStateRoot(stateRoot);
-		m_rlpEncoded = null;
 	}
 
-	public byte[] getReceiptsRoot() {
-		parseRLP();
-		return m_header.getReceiptsRoot();
-	}
-
-	public long getTimestamp() {
-		parseRLP();
+	public BlockTimestamp getTimestamp() {
 		return m_header.getTimestamp();
 	}
 
-	public List<Transaction> getTransactionsList() {
-		parseRLP();
+	public List<TransactionReceipt> getTransactionsList() {
 		return m_transactions;
 	}
 	
-	public void setTransactionsList(List<Transaction> trans) {
+	public void setTransactionsList(List<TransactionReceipt> trans) {
 		m_transactions = trans;
-		m_rlpEncoded = null;
-	}
-
-	private List<byte[]> getBodyElements() {
-		parseRLP();
-		byte[] transactions = getTransactionsEncoded();
-		List<byte[]> body = new ArrayList<>();
-		body.add(transactions);
-		return body;
 	}
 
 	public byte[] getEncoded() {
-		if (m_rlpEncoded == null) {
-			byte[] header = m_header.getEncoded();
-			List<byte[]> block = getBodyElements();
-			block.add(0, header);
-			byte[][] elements = block.toArray(new byte[block.size()][]);
-			m_rlpEncoded = RLP.encodeList(elements);
-		}
-		return m_rlpEncoded;
+		String jsonStr = toJson();
+		return jsonStr.getBytes(Charset.forName("UTF-8"));
 	}
 
 	public byte[] getEncodedBody() {
-		List<byte[]> body = getBodyElements();
-		byte[][] elements = body.toArray(new byte[body.size()][]);
-		return RLP.encodeList(elements);
-	}
-
-	private byte[] getTransactionsEncoded() {
-
-		byte[][] transactionsEncoded = new byte[m_transactions.size()][];
-		int i = 0;
-		for (Transaction tx : m_transactions) {
-			transactionsEncoded[i] = tx.getEncoded();
-			++i;
-		}
-		return RLP.encodeList(transactionsEncoded);
+		String jsonStr = toBodyJson();
+		return jsonStr.getBytes(Charset.forName("UTF-8"));
 	}
 
 	public String getShortHash() {
-		parseRLP();
 		return Hex.toHexString(getHash()).substring(0, 6);
 	}
 
 	public String getShortDescr() {
-		return "#" + getNumber() + " (" + Hex.toHexString(getHash()).substring(0, 6) + " <~ "
-				+ Hex.toHexString(getParentHash()).substring(0, 6) + ") Txs:" + getTransactionsList().size();
+		return "#" + getBlockNumber() + " (" + Hex.toHexString(getHash()).substring(0, 6) + " <~ "
+				+ getParentHash().substring(0, 6) + ") Txs:" + getTransactionsList().size();
 	}
 
 	public boolean isEqual(Block block) {
@@ -247,7 +208,7 @@ public class Block {
 	}
 
 	public boolean isParentOf(Block block) {
-		return Arrays.areEqual(getHash(), block.getParentHash());
+		return Arrays.areEqual(getHash(), Numeric.hexStringToByteArray(block.getParentHash()));
 	}
 
 	/**
@@ -259,75 +220,122 @@ public class Block {
 	 * @param transactionsList
 	 * @return
 	 */
-	public static Block newBlock(byte[] parentHash, byte[] minedBy, long number, long timestamp, byte[] extraData,
-			byte[] transactionsRoot, List<Transaction> transactionsList) {
-		Block block = new Block(parentHash, minedBy, number, timestamp, extraData, transactionsList);
+	public static Block newBlock(String parentHash, String producer, long number, BlockTimestamp timestamp, String extraData,
+			String transactionsRoot, List<TransactionReceipt> transactionsList) {
+		Block block = new Block(parentHash, producer, number, timestamp, extraData, transactionsList);
 
-		block.m_header.setTxTrieRoot((DataCenter.getSonChainImpl().getBlockChain().calcTxTrie(transactionsList)));
-		if (!Hex.toHexString(transactionsRoot).equals(Hex.toHexString(block.m_header.getTxTrieRoot()))) {
+		block.m_header.setMerkleTxRoot(Hex.toHexString((DataCenter.getSonChainImpl().getBlockChain().calcTxTrie(transactionsList))));
+		if (!transactionsRoot.equals(block.m_header.getMerkleTxRoot())) {
 			// logger.debug("Transaction root miss-calculate, block: {}",
 			// getNumber());
 		}
 		return block;
 	}
-	
-	public static Block newGenesisBlock(BigInteger targetValue) {
-		return null;
-		// return Block.NewBlock(null, null, Instant.now().getEpochSecond() ,
-		// BigInteger.ZERO, BigInteger.ZERO, null);
-	}
-	
-	private synchronized void parseRLP() {
-		if (m_parsed) {
-			return;
+
+    @Override
+	public String toJson(){
+		try{
+			ObjectMapper mapper = new ObjectMapper();
+			ObjectNode blockNode = mapper.createObjectNode();
+			toJson(blockNode);
+			String jsonStr =  mapper.writeValueAsString (blockNode);
+			m_logger.debug(" Block Json String is :" + jsonStr);
+			return jsonStr;
 		}
-		RLPList params = RLP.decode2(m_rlpEncoded);
-		RLPList block = (RLPList) params.get(0);
-		RLPList header = (RLPList) block.get(0);
-		m_header = new BlockHeader(header);
-
-		RLPList txTransactions = (RLPList) block.get(1);
-		parseTxs(m_header.getTxTrieRoot(), txTransactions, false);
-		m_parsed = true;
+		catch(Exception ex){
+			m_logger.error(" Block toJson error:" + ex.getMessage());
+			return "";
+		}
 	}
 
-	private byte[] parseTxs(RLPList txTransactions, boolean validate) {
+    @Override
+	public synchronized void jsonParse(String json) {
+		try{
+			ObjectMapper mapper = new ObjectMapper();
+			JsonNode blockNode = mapper.readTree(json); 
+			jsonParse(blockNode);
+		}
+		catch(IOException ex){
+			m_logger.error(" Block jsonParse error:" + ex.getMessage());
+		}
+	}
+	
+	public String toBodyJson(){
+		try{
+			ObjectMapper mapper = new ObjectMapper();
+			ObjectNode blockNode = mapper.createObjectNode();
+	    	if(m_transactions != null){
+	    		ArrayNode transNodes = blockNode.arrayNode();
+	    		int size = m_transactions.size();
+	    		for(int i = 0 ; i < size; i++){
+	    			ObjectNode transNode = blockNode.objectNode();
+	    			m_transactions.get(i).toJson(transNode);
+	    			transNodes.add(transNode);
+	    		}
+	    		blockNode.set("transactions", transNodes);
+	    	}
+			String jsonStr =  mapper.writeValueAsString (blockNode);
+			m_logger.debug(" Block Body Json String is :" + jsonStr);
+			return jsonStr;
+		}
+		catch(Exception ex){
+			m_logger.error(" Block Body toJson error:" + ex.getMessage());
+			return "";
+		}
+	}
 
-		Trie<byte[]> txsState = new TrieImpl();
-		for (int i = 0; i < txTransactions.size(); i++) {
-			RLPElement transactionRaw = txTransactions.get(i);
-			Transaction tx = new Transaction(transactionRaw.getRLPData());
-			if (validate) {
-				tx.verify();
+    @Override
+	public void toJson(ObjectNode blockHeaderNode){
+    	if(m_header != null){
+    		m_header.toJson(blockHeaderNode);
+    	}
+    	if(m_transactions != null){
+    		ArrayNode transNodes = blockHeaderNode.arrayNode();
+    		int size = m_transactions.size();
+    		for(int i = 0 ; i < size; i++){
+    			ObjectNode transNode = blockHeaderNode.objectNode();
+    			m_transactions.get(i).toJson(transNode);
+    			transNodes.add(transNode);
+    		}
+    		blockHeaderNode.set("transactions", transNodes);
+    	}
+	}
+
+    @Override
+	public synchronized void jsonParse(JsonNode blockNode) {
+		try {
+	    	if(m_header == null){
+	    		m_header = new BlockHeader();
+	    	}	
+    		m_header.jsonParse(blockNode);		
+			if(m_transactions == null){
+				m_transactions = new CopyOnWriteArrayList<>();
 			}
-			m_transactions.add(tx);
-			txsState.put(RLP.encodeInt(i), transactionRaw.getRLPData());
+			JsonNode trans = blockNode.get("transactions");
+			for (JsonNode tran : trans) {  
+				TransactionReceipt transactionReceipt = new TransactionReceipt();
+				transactionReceipt.jsonParse(tran);
+				m_transactions.add(transactionReceipt);
+			}
+			
+		} catch (Exception e) {
+	        m_logger.error(e);
+			throw new RuntimeException("Error on parsing Json", e);
 		}
-		return txsState.getRootHash();
 	}
 
-	private boolean parseTxs(byte[] expectedRoot, RLPList txTransactions, boolean validate) {
-
-		byte[] rootHash = parseTxs(txTransactions, validate);
-		String calculatedRoot = Hex.toHexString(rootHash);
-		if (!calculatedRoot.equals(Hex.toHexString(expectedRoot))) {
-			// logger.debug("Transactions trie root validation failed for block
-			// #{}", this.header.getNumber());
-			return false;
-		}
-
-		return true;
-	}
-
+	/**
+	 * 
+	 * @return
+	 */
 	public String toFlatString() {
-		parseRLP();
 		StringBuffer toStringBuff = new StringBuffer();
 		toStringBuff.setLength(0);
 		toStringBuff.append("BlockData [");
 		toStringBuff.append("hash=").append(ByteUtil.toHexString(getHash()));
 		toStringBuff.append(m_header.toFlatString());
 
-		for (Transaction tx : m_transactions) {
+		for (TransactionReceipt tx : m_transactions) {
 			toStringBuff.append("\n");
 			toStringBuff.append(tx.toString());
 		}
@@ -335,13 +343,10 @@ public class Block {
 		return toStringBuff.toString();
 	}
 
-	public String toJson() {
-		return EasyJSONDataUtil.ConvertObjectToJSON(this);
-	}
-
+	/**
+	 */
 	@Override
 	public String toString() {
-		parseRLP();
 		StringBuffer toStringBuff = new StringBuffer();
 		toStringBuff.setLength(0);
 		toStringBuff.append(Hex.toHexString(getEncoded())).append("\n");
@@ -351,8 +356,8 @@ public class Block {
 
 		if (!m_transactions.isEmpty()) {
 			toStringBuff.append("Txs [\n");
-			for (Transaction tx : m_transactions) {
-				toStringBuff.append(tx);
+			for (TransactionReceipt tx : m_transactions) {
+				toStringBuff.append(tx.toString());
 				toStringBuff.append("\n");
 			}
 			toStringBuff.append("]\n");
@@ -361,49 +366,5 @@ public class Block {
 		}
 		toStringBuff.append("]");
 		return toStringBuff.toString();
-	}
-
-	public static class Builder {
-
-		private byte[] m_body = null;
-		private BlockHeader m_header = null;
-
-		public Block create() {
-			if (m_header == null || m_body == null) {
-				return null;
-			}
-			Block block = new Block();
-			block.m_header = m_header;
-			block.m_parsed = true;
-			RLPList items = (RLPList) RLP.decode2(m_body).get(0);
-			RLPList transactions = (RLPList) items.get(0);
-			if (!block.parseTxs(m_header.getTxTrieRoot(), transactions, false)) {
-				return null;
-			}
-			return block;
-		}
-
-		/**
-		 * 
-		 * @param header
-		 * @return
-		 */
-		public Builder withHeader(BlockHeader header) {
-			m_header = header;
-			return this;
-		}
-
-		public Builder withBody(byte[] body) {
-			m_body = body;
-			return this;
-		}
-	}
-
-	public static Block toData(String json) {
-		try {
-			return (Block) EasyJSONDataUtil.ConvertJSONToObject(json, Block.class);
-		} catch (Exception ex) {
-			return null;
-		}
 	}
 }

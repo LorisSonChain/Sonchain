@@ -2,6 +2,7 @@ package sonchain.blockchain.datasource.leveldb;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -9,15 +10,13 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import org.apache.log4j.Logger;
-
-import org.bouncycastle.util.encoders.Hex;
 import org.iq80.leveldb.*;
 
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import sonchain.blockchain.core.FileUtil;
-import sonchain.blockchain.datasource.DbSource;
+import sonchain.blockchain.datasource.base.DbSource;
 import sonchain.blockchain.service.DataCenter;
 
 import static org.fusesource.leveldbjni.JniDBFactory.factory;
@@ -25,12 +24,13 @@ import static org.fusesource.leveldbjni.JniDBFactory.factory;
 /**
  *
  */
-public class LevelDbDataSource implements DbSource<byte[]> {
+public class LevelDbDataSource implements DbSource<String> {
 
     private boolean m_alive = false;
     private DB m_db = null;
 	public static final Logger m_logger = Logger.getLogger(LevelDbDataSource.class);
     private String m_name = "";
+    private Charset m_charset = Charset.forName("utf-8");
 
     // The native LevelDB insert/update/delete are normally thread-safe
     // However close operation is not thread-safe and may lead to a native crash when
@@ -102,20 +102,20 @@ public class LevelDbDataSource implements DbSource<byte[]> {
      * delete
      */
     @Override
-    public void delete(byte[] key) {
-    	m_logger.debug("close delete start name :" + m_name + "delete key:" + Hex.toHexString(key));
+    public void delete(String key) {
+    	m_logger.debug("close delete start name :" + m_name + "delete key:" + key);
     	m_resetDbLock.readLock().lock();
         try {
             if (m_logger.isTraceEnabled()) {
-            	m_logger.trace("~> LevelDbDataSource.delete(): " + m_name + ", key: " + Hex.toHexString(key));
+            	m_logger.trace("~> LevelDbDataSource.delete(): " + m_name + ", key: " + key);
             }
-        	m_db.delete(key);
+        	m_db.delete(key.getBytes(m_charset));
             if (m_logger.isTraceEnabled()){
-            	m_logger.trace("<~ LevelDbDataSource.delete(): " + m_name + ", key: " + Hex.toHexString(key));
+            	m_logger.trace("<~ LevelDbDataSource.delete(): " + m_name + ", key: " + key);
             }
         } finally {
         	m_resetDbLock.readLock().unlock();
-        	m_logger.debug("close delete end name :" + m_name + "delete key:" + Hex.toHexString(key));
+        	m_logger.debug("close delete end name :" + m_name + "delete key:" + key);
         }
     }
 
@@ -153,32 +153,32 @@ public class LevelDbDataSource implements DbSource<byte[]> {
      * get
      */
     @Override
-    public byte[] get(byte[] key) {
-    	m_logger.debug("get start name :" + m_name + " get key:" + Hex.toHexString(key));
+    public String get(String key) {
+    	m_logger.debug("get start name :" + m_name + " get key:" + key);
     	m_resetDbLock.readLock().lock();
         try {
             if (m_logger.isTraceEnabled()){
-            	m_logger.trace("~> LevelDbDataSource.get(): " + m_name + ", key: " + Hex.toHexString(key));
+            	m_logger.trace("~> LevelDbDataSource.get(): " + m_name + ", key: " + key);
             }
             try {
-                byte[] ret = m_db.get(key);
+                byte[] ret = m_db.get(key.getBytes(m_charset));
                 if (m_logger.isTraceEnabled()){
                 	m_logger.trace("<~ LevelDbDataSource.get(): " + m_name + ", key: " 
-                			+ Hex.toHexString(key) + ", " + (ret == null ? "null" : ret.length));
+                			+ key + ", " + (ret == null ? "null" : ret.length));
                 }
-                return ret;
+                return new String(ret, m_charset);
             } catch (DBException e) {
             	m_logger.warn("Exception. Retrying again...", e);
-                byte[] ret = m_db.get(key);
+                byte[] ret = m_db.get(key.getBytes(m_charset));
                 if (m_logger.isTraceEnabled()) {
                 	m_logger.trace("<~ LevelDbDataSource.get(): " + m_name + ", key: " 
-                			+ Hex.toHexString(key) + ", " + (ret == null ? "null" : ret.length));
+                			+ key + ", " + (ret == null ? "null" : ret.length));
                 }
-                return ret;
+                return new String(ret, m_charset);
             }
         } finally {
         	m_resetDbLock.readLock().unlock();
-        	m_logger.debug("get end name :" + m_name + "get key:" + Hex.toHexString(key));
+        	m_logger.debug("get end name :" + m_name + "get key:" + key);
         }
     }
 
@@ -264,7 +264,7 @@ public class LevelDbDataSource implements DbSource<byte[]> {
      * keys
      */
     @Override
-    public Set<byte[]> keys() {
+    public Set<String> keys() {
     	m_logger.debug("keys start name :" + m_name);
     	m_resetDbLock.readLock().lock();
         try {
@@ -272,9 +272,9 @@ public class LevelDbDataSource implements DbSource<byte[]> {
             	m_logger.trace("~> LevelDbDataSource.keys(): " + m_name);
             }
             try (DBIterator iterator = m_db.iterator()) {
-                Set<byte[]> result = new HashSet<>();
+                Set<String> result = new HashSet<>();
                 for (iterator.seekToFirst(); iterator.hasNext(); iterator.next()) {
-                    result.add(iterator.peekNext().getKey());
+                    result.add(new String(iterator.peekNext().getKey(), m_charset));
                 }
                 if (m_logger.isTraceEnabled()) {
                 	m_logger.trace("<~ LevelDbDataSource.keys(): " + m_name + ", " + result.size());
@@ -294,22 +294,22 @@ public class LevelDbDataSource implements DbSource<byte[]> {
      * 
      */
     @Override
-    public void put(byte[] key, byte[] value) {
-    	m_logger.debug("put start name :" + m_name + "key:" + Hex.toHexString(key) + "value" + Hex.toHexString(value));
+    public void put(String key, String value) {
+    	m_logger.debug("put start name :" + m_name + "key:" + key + "value" + value);
     	m_resetDbLock.readLock().lock();
         try {
             if (m_logger.isTraceEnabled()) {
-            	m_logger.trace("~> LevelDbDataSource.put(): " + m_name + ", key: " + Hex.toHexString(key) 
-            			+ ", " + (value == null ? "null" : value.length));
+            	m_logger.trace("~> LevelDbDataSource.put(): " + m_name + ", key: " + key 
+            			+ ", " + (value == null ? "null" : value.length()));
             }
-        	m_db.put(key, value);
+        	m_db.put(key.getBytes(m_charset), value.getBytes(m_charset));
             if (m_logger.isTraceEnabled()) {
-            	m_logger.trace("<~ LevelDbDataSource.put(): " + m_name + ", key: " + Hex.toHexString(key) 
-            			+ ", " + (value == null ? "null" : value.length));
+            	m_logger.trace("<~ LevelDbDataSource.put(): " + m_name + ", key: " + key 
+            			+ ", " + (value == null ? "null" : value.length()));
             }
         } finally {
         	m_resetDbLock.readLock().unlock();
-        	m_logger.debug("put end name :" + m_name + "key:" + Hex.toHexString(key) + "value" + Hex.toHexString(value));
+        	m_logger.debug("put end name :" + m_name + "key:" + key + "value" + value);
         }
     }
     
@@ -329,17 +329,17 @@ public class LevelDbDataSource implements DbSource<byte[]> {
      * @param rows
      * @throws IOException
      */
-    private void updateBatchInternal(Map<byte[], byte[]> rows) throws IOException {
+    private void updateBatchInternal(Map<String, String>  rows) throws IOException {
     	m_logger.debug("updateBatchInternal start name :" + m_name);
         try (WriteBatch batch = m_db.createWriteBatch()) {
-            for (Map.Entry<byte[], byte[]> entry : rows.entrySet()) {
+            for (Map.Entry<String, String> entry : rows.entrySet()) {
                 if (entry.getValue() == null) {
-                	m_logger.debug("updateBatchInternal delete key :" + Hex.toHexString(entry.getKey()));
-                    batch.delete(entry.getKey());
+                	m_logger.debug("updateBatchInternal delete key :" + entry.getKey());
+                    batch.delete(entry.getKey().getBytes(m_charset));
                 } else {
-                	m_logger.debug("updateBatchInternal put key :" + Hex.toHexString(entry.getKey())
-                	+ "value:" + Hex.toHexString(entry.getValue()));
-                    batch.put(entry.getKey(), entry.getValue());
+                	m_logger.debug("updateBatchInternal put key :" + entry.getKey()
+                	+ "value:" + entry.getValue());
+                    batch.put(entry.getKey().getBytes(m_charset), entry.getValue().getBytes(m_charset));
                 }
             }
             m_db.write(batch);
@@ -351,7 +351,7 @@ public class LevelDbDataSource implements DbSource<byte[]> {
      * updateBatch
      */
     @Override
-    public void updateBatch(Map<byte[], byte[]> rows) {
+    public void updateBatch(Map<String, String> rows) {
     	m_logger.debug("updateBatch start name :" + m_name);
     	m_resetDbLock.readLock().lock();
         try {

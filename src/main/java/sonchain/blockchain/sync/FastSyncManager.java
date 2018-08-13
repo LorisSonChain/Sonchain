@@ -32,7 +32,7 @@ import sonchain.blockchain.core.BlockChainImpl;
 import sonchain.blockchain.core.BlockHeader;
 import sonchain.blockchain.core.BlockIdentifier;
 import sonchain.blockchain.crypto.HashUtil;
-import sonchain.blockchain.datasource.DbSource;
+import sonchain.blockchain.datasource.base.DbSource;
 import sonchain.blockchain.db.DbFlushManager;
 import sonchain.blockchain.db.IndexedBlockStore;
 import sonchain.blockchain.db.StateSource;
@@ -45,6 +45,7 @@ import sonchain.blockchain.util.ByteArrayMap;
 import sonchain.blockchain.util.CompactEncoder;
 import sonchain.blockchain.util.FastByteComparisons;
 import sonchain.blockchain.util.Functional;
+import sonchain.blockchain.util.Numeric;
 import sonchain.blockchain.util.Value;
 
 public class FastSyncManager {
@@ -60,10 +61,8 @@ public class FastSyncManager {
 
     //private static final Capability ETH63_CAPABILITY = new Capability(Capability.ETH, (byte) 63);
 
-    public static final byte[] FASTSYNC_DB_KEY_SYNC_STAGE = HashUtil.sha3(
-    		"Key in state DB indicating fastsync stage in progress".getBytes());
-    public static final byte[] FASTSYNC_DB_KEY_PIVOT = HashUtil.sha3(
-    		"Key in state DB with encoded selected pivot block".getBytes());
+    public static final String FASTSYNC_DB_KEY_SYNC_STAGE = "Key in state DB indicating fastsync stage in progress";
+    public static final String FASTSYNC_DB_KEY_PIVOT = "Key in state DB with encoded selected pivot block";
 
     private SyncPool m_pool = null;
     private BlockChain m_blockchain = DataCenter.getSonChainImpl().getBlockChain();
@@ -71,7 +70,7 @@ public class FastSyncManager {
     private IndexedBlockStore m_blockStore = (IndexedBlockStore) DataCenter.getSonChainImpl().getBlockChain().getBlockStore();
 
     private SyncManager m_syncManager = new SyncManager();
-    private DbSource<byte[]> m_blockchainDB = CommonConfig.getDefault().getBlockChainDB();
+    private DbSource<String> m_blockchainDB = CommonConfig.getDefault().getBlockChainDB();
 
     private DbFlushManager dbFlushManager =  CommonConfig.getDefault().getDbFlushManager();
     private StateSource m_stateSource;
@@ -163,16 +162,16 @@ public class FastSyncManager {
                         nodesQueue.size() + pendingNodes.size() + nodesInserted);
             case SECURE:
                 return new SyncStatus(SyncStatus.SyncStage.Headers, m_headersDownloader.getHeadersLoaded(),
-                		m_pivot.getNumber());
+                		m_pivot.getBlockNumber());
             case COMPLETE:
                 if (m_receiptsDownloader != null) {
                     return new SyncStatus(SyncStatus.SyncStage.Receipts,
-                            m_receiptsDownloader.getDownloadedBlocksCount(), m_pivot.getNumber());
+                            m_receiptsDownloader.getDownloadedBlocksCount(), m_pivot.getBlockNumber());
                 } else if (m_blockBodiesDownloader!= null) {
                     return new SyncStatus(SyncStatus.SyncStage.BlockBodies,
-                    		m_blockBodiesDownloader.getDownloadedCount(), m_pivot.getNumber());
+                    		m_blockBodiesDownloader.getDownloadedCount(), m_pivot.getBlockNumber());
                 } else {
-                    return new SyncStatus(SyncStatus.SyncStage.BlockBodies, 0, m_pivot.getNumber());
+                    return new SyncStatus(SyncStatus.SyncStage.BlockBodies, 0, m_pivot.getBlockNumber());
                 }
         }
         return new SyncStatus(SyncStatus.SyncStage.Complete, 0, 0);
@@ -443,12 +442,12 @@ public class FastSyncManager {
         if (stage == null) {
             m_blockchainDB.delete(FASTSYNC_DB_KEY_SYNC_STAGE);
         } else {
-            m_blockchainDB.put(FASTSYNC_DB_KEY_SYNC_STAGE, new byte[]{(byte) stage.ordinal()});
+            m_blockchainDB.put(FASTSYNC_DB_KEY_SYNC_STAGE, String.valueOf(stage.ordinal()));
         }
     }
 
     private CompositeSonChainListener.SyncState getSyncStage() {
-        byte[] bytes = m_blockchainDB.get(FASTSYNC_DB_KEY_SYNC_STAGE);
+        byte[] bytes = m_blockchainDB.get(FASTSYNC_DB_KEY_SYNC_STAGE).getBytes();
         if (bytes == null) {
         	return CompositeSonChainListener.SyncState.UNSECURE;
         }
@@ -457,7 +456,7 @@ public class FastSyncManager {
 
 
     private void syncUnsecure(BlockHeader pivot) {
-        byte[] pivotStateRoot = pivot.getStateRoot();
+        byte[] pivotStateRoot = Numeric.hexStringToByteArray(pivot.getStateRoot());
         TrieNodeRequest request = new TrieNodeRequest(TrieNodeType.STATE, pivotStateRoot);
         nodesQueue.add(request);
         m_logger.info("FastSync: downloading state trie at pivot block: " + pivot.getShortDescr());
@@ -490,7 +489,8 @@ public class FastSyncManager {
 //            throw new RuntimeException(e);
 //        }
 
-        m_blockchainDB.put(FASTSYNC_DB_KEY_PIVOT, pivot.getEncoded());
+        //m_blockchainDB.put(FASTSYNC_DB_KEY_PIVOT, pivot.getEncoded());
+        m_blockchainDB.put(FASTSYNC_DB_KEY_PIVOT, pivot.toString());
         dbFlushManager.commit();
         dbFlushManager.flush();
 
@@ -498,7 +498,9 @@ public class FastSyncManager {
     }
 
     private void syncSecure() {
-    	m_pivot = new BlockHeader(m_blockchainDB.get(FASTSYNC_DB_KEY_PIVOT));
+
+    	//TODO
+    	//m_pivot = new BlockHeader(m_blockchainDB.get(FASTSYNC_DB_KEY_PIVOT));
 
         m_logger.info("FastSync: downloading headers from pivot down to genesis block for ensure pivot block (" + m_pivot.getShortDescr() + ") is secure...");
         m_headersDownloader.init(m_pivot.getHash());
@@ -517,14 +519,15 @@ public class FastSyncManager {
     }
 
     private void syncBlocksReceipts() {
-    	m_pivot = new BlockHeader(m_blockchainDB.get(FASTSYNC_DB_KEY_PIVOT));
+    	//TODO
+    	//m_pivot = new BlockHeader(m_blockchainDB.get(FASTSYNC_DB_KEY_PIVOT));
         m_logger.info("FastSync: Downloading Block bodies up to pivot block (" + m_pivot.getShortDescr() + ")...");
         setSyncStage(CompositeSonChainListener.SyncState.COMPLETE);
         m_blockBodiesDownloader.startImporting();
         m_blockBodiesDownloader.waitForStop();
         m_logger.info("FastSync: Block bodies downloaded");
         m_logger.info("FastSync: Downloading receipts...");
-        m_receiptsDownloader = new ReceiptsDownloader(1, m_pivot.getNumber() + 1);
+        m_receiptsDownloader = new ReceiptsDownloader(1, m_pivot.getBlockNumber() + 1);
         m_receiptsDownloader.startImporting();
         m_receiptsDownloader.waitForStop();
         m_logger.info("FastSync: receipts downloaded");
@@ -541,7 +544,7 @@ public class FastSyncManager {
     }
 
     public void main() {
-        if (m_blockchain.getBestBlock().getNumber() == 0 
+        if (m_blockchain.getBestBlock().getBlockNumber() == 0 
         		|| getSyncStage() == SonChainListener.SyncState.SECURE 
         		|| getSyncStage() == SonChainListener.SyncState.COMPLETE) {
             // either no DB at all (clear sync or DB was deleted due to UNSECURE stage while initializing
@@ -563,7 +566,7 @@ public class FastSyncManager {
                 switch (origSyncStage) {
                     case UNSECURE:
                     	m_pivot = getPivotBlock();
-                        if (m_pivot.getNumber() == 0) {
+                        if (m_pivot.getBlockNumber() == 0) {
                         	m_logger.info("FastSync: too short blockchain, proceeding with regular sync...");
                         	m_syncManager.initRegularSync(CompositeSonChainListener.SyncState.COMPLETE);
                             return;

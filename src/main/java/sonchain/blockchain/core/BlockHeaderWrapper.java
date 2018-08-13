@@ -4,7 +4,7 @@ import java.util.List;
 
 import org.bouncycastle.util.encoders.Hex;
 
-import sonchain.blockchain.consensus.SonChainPeerNode;
+import sonchain.blockchain.consensus.SonChainProducerNode;
 import sonchain.blockchain.data.SonChainHostInfo;
 import sonchain.blockchain.util.RLP;
 import sonchain.blockchain.util.RLPList;
@@ -13,9 +13,9 @@ import sonchain.blockchain.util.RLPElement;
 public class BlockHeaderWrapper {
 
     private BlockHeader m_header;
-    private SonChainPeerNode m_nodeInfo;
+    private SonChainProducerNode m_nodeInfo;
 
-    public BlockHeaderWrapper(BlockHeader header, SonChainPeerNode nodeInfo) {
+    public BlockHeaderWrapper(BlockHeader header, SonChainProducerNode nodeInfo) {
     	m_header = header;
     	m_nodeInfo = nodeInfo;
     }
@@ -42,24 +42,25 @@ public class BlockHeaderWrapper {
         return Hex.toHexString(m_header.getHash()).substring(0, 6);
     }
     
-    public SonChainPeerNode getNodeId() {
+    public SonChainProducerNode getNodeId() {
         return m_nodeInfo;
     }
     
     public long getNumber() {
-        return m_header.getNumber();
+        return m_header.getBlockNumber();
     }
     
     private void parse(byte[] bytes) {
         List<RLPElement> params = RLP.decode2(bytes);
         List<RLPElement> wrapper = (RLPList) params.get(0);
         byte[] headerBytes = wrapper.get(0).getRLPData();
-        m_header= new BlockHeader(headerBytes);
+		//TODO
+        //m_header= new BlockHeader(headerBytes);
         byte[] nodeBytes = wrapper.get(1).getRLPData();
-        m_nodeInfo = SonChainPeerNode.fromBytes(nodeBytes);
+        m_nodeInfo = SonChainProducerNode.fromBytes(nodeBytes);
     }
 
-    public boolean sentBy(SonChainPeerNode nodeInfo) {
+    public boolean sentBy(SonChainProducerNode nodeInfo) {
     	if(m_nodeInfo.getHost().equals(nodeInfo.getHost()) 
     			&& m_nodeInfo.getPort() == nodeInfo.getPort()){
     		return true;

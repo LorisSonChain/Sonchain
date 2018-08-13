@@ -35,7 +35,8 @@ public class BlockHeadersMessage  extends BaseMessage{
         m_blockHeaders = new ArrayList<>();
         for (int i = 0; i < paramsList.size(); ++i) {
             RLPList rlpData = ((RLPList) paramsList.get(i));
-            m_blockHeaders.add(new BlockHeader(rlpData));
+	        //TODO
+            //m_blockHeaders.add(new BlockHeader(rlpData));
         }
         m_parsed = true;
     }
@@ -80,11 +81,11 @@ public class BlockHeadersMessage  extends BaseMessage{
             }
         } else {
             if (m_blockHeaders.size() > 0) {
-                payload.append("#").append(m_blockHeaders.get(0).getNumber()).append(" (")
+                payload.append("#").append(m_blockHeaders.get(0).getBlockNumber()).append(" (")
                         .append(Hex.toHexString(m_blockHeaders.get(0).getHash()).substring(0, 8)).append(")");
             }
             if (m_blockHeaders.size() > 1) {
-                payload.append(" ... #").append(m_blockHeaders.get(m_blockHeaders.size() - 1).getNumber()).append(" (")
+                payload.append(" ... #").append(m_blockHeaders.get(m_blockHeaders.size() - 1).getBlockNumber()).append(" (")
                         .append(Hex.toHexString(m_blockHeaders.get(m_blockHeaders.size() - 1).getHash()).substring(0, 8)).append(")");
             }
         }

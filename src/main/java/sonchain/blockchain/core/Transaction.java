@@ -1,30 +1,33 @@
 package sonchain.blockchain.core;
 
-import java.math.BigInteger;
-import java.security.SignatureException;
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.log4j.Logger;
-import org.bouncycastle.util.BigIntegers;
 import org.bouncycastle.util.encoders.Hex;
 
-import sonchain.blockchain.crypto.ECKey;
-import sonchain.blockchain.crypto.ECKey.ECDSASignature;
-import sonchain.blockchain.crypto.ECKey.MissingPrivateKeyException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
 import sonchain.blockchain.crypto.HashUtil;
 import sonchain.blockchain.util.ByteUtil;
-import sonchain.blockchain.util.RLP;
-import sonchain.blockchain.util.RLPElement;
-import sonchain.blockchain.util.RLPItem;
-import sonchain.blockchain.util.RLPList;
+import sonchain.blockchain.util.Numeric;
 
 
 /**
  * Transaction
+ * 
+ * @author GAIA
  *
  */
-public class Transaction{
+public class Transaction extends TransactionHeader implements IJson{
 
 	public static final Logger m_logger = Logger.getLogger(Transaction.class);
 	public static final int HASH_LENGTH = 32;
@@ -36,17 +39,6 @@ public class Transaction{
 	 * 
 	 */
 	public Transaction() {
-		m_parsed = false;
-	}
-
-	/**
-	 * Constructor
-	 * 
-	 * @param rawData
-	 */
-	public Transaction(byte[] rawData) {
-		m_rlpEncoded = rawData;
-		m_parsed = false;
 	}
 
 	/**
@@ -58,18 +50,7 @@ public class Transaction{
 	 * @param data
 	 */
 	public Transaction(byte[] nonce, byte[] receiveAddress, byte[] value, byte[] data) {
-		m_nonce = nonce;
-		m_receiveAddress = receiveAddress;
-		if (ByteUtil.isSingleZero(value)) {
-			m_value = ByteUtil.EMPTY_BYTE_ARRAY;
-		} else {
-			m_value = value;
-		}
-		m_inputData = data;
-		if (receiveAddress == null) {
-			m_receiveAddress = ByteUtil.EMPTY_BYTE_ARRAY;
-		}
-		m_parsed = true;
+		this(nonce, receiveAddress, value, data, "");
 	}
 
 	/**
@@ -79,187 +60,125 @@ public class Transaction{
 	 * @param receiveAddress
 	 * @param value
 	 * @param data
-	 * @param r
-	 * @param s
-	 * @param v
+	 * @param privateNote
 	 */
-	public Transaction(byte[] nonce, byte[] receiveAddress, byte[] value, byte[] data,
-			byte[] r, byte[] s, byte v) {
-		this(nonce, receiveAddress, value, data);
-		this.m_signature = ECDSASignature.fromComponents(r, s, v);
+	public Transaction(byte[] nonce, byte[] receiveAddress, byte[] value, byte[] data, String privateNote) {
+		m_nonce = nonce;
+		m_receiveAddress = receiveAddress;
+		if (ByteUtil.isSingleZero(value)) {
+			setValue(ByteUtil.EMPTY_BYTE_ARRAY);
+		} else {
+			setValue(value);
+		}
+		if (receiveAddress == null) {
+			m_receiveAddress = ByteUtil.EMPTY_BYTE_ARRAY;
+		}
+		m_privateNote = privateNote;
+	}
+
+	/**
+	 * Constructor
+	 * 
+	 * @param nonce
+	 * @param receiveAddress
+	 * @param senderAddress
+	 * @param value
+	 * @param data
+	 * @param privateNote
+	 */
+	public Transaction(byte[] nonce, byte[] receiveAddress, byte[] senderAddress, byte[] value, byte[] data, String privateNote) {
+		m_nonce = nonce;
+		m_receiveAddress = receiveAddress;
+		m_senderAddress = senderAddress;
+		if (ByteUtil.isSingleZero(value)) {
+			setValue(ByteUtil.EMPTY_BYTE_ARRAY);
+		} else {
+			setValue(value);
+		}
+		if (receiveAddress == null) {
+			m_receiveAddress = ByteUtil.EMPTY_BYTE_ARRAY;
+		}
+		if (m_senderAddress == null) {
+			m_senderAddress = ByteUtil.EMPTY_BYTE_ARRAY;
+		}
+		m_privateNote = privateNote;
 	}
 	
-	private long m_blockHeight = 0;
-	private byte[] m_hash;
-	private byte[] m_inputData;
-	private byte[] m_nonce;
-	protected boolean m_parsed = false;
+	private byte[] m_nonce = ByteUtil.ZERO_BYTE_ARRAY;
 	private String m_privateNote = "";
-	private byte[] m_receiveAddress;
-	private String m_remark = "";
-	protected byte[] m_senderAddress;
-    private ECDSASignature m_signature;
-	private long m_timeStamp = 0;
-	//private TransactionReceiptStatus m_txReceiptStatus = TransactionReceiptStatus.None;
-	//public TransactionType m_type = TransactionType.NullTransaction;
-	private byte[] m_value;
-	protected int m_version = 0;
-	protected byte[] m_rlpEncoded;
-	private byte[] m_rlpRaw;
-	
-    public byte[] getData() {
-    	rlpParse();
-        return m_inputData;
+	private byte[] m_receiveAddress = ByteUtil.ZERO_BYTE_ARRAY;
+	private byte[] m_senderAddress = ByteUtil.ZERO_BYTE_ARRAY;
+	private List<Action> m_actions = new ArrayList<Action>();
+	 
+    public byte[] getContractAddress() {
+        if (!isContractCreation()) 
+       {
+        	return null;
+        }
+        return HashUtil.calcNewAddr(getSenderAddress(), getNonce());
     }
     
-    protected void setData(byte[] data) {
-        m_inputData = data;
-        m_parsed = true;
-    }
-    
+    @Override
     public byte[] getHash()	 
     {
-        if (!ArrayUtils.isEmpty(m_hash)) 
+    	byte[] hash = super.getHash();
+        if (!ArrayUtils.isEmpty(hash))
     	{
-        	return m_hash;
+        	return hash;
     	}
-        rlpParse();
-        byte[] plainMsg = getEncoded();
-        byte[] hash = HashUtil.sha3(plainMsg);
+        byte[] plainMsg = getEncodedRaw();
+        hash = HashUtil.sha3(plainMsg);
+        super.setHash(hash);
         m_logger.debug("getHash hash:" + Hex.toHexString(hash));
         return hash;
     }
     
     public byte[] getNonce() {
-    	rlpParse();
         return m_nonce == null ? ByteUtil.ZERO_BYTE_ARRAY : m_nonce;
     }
 
     protected void setNonce(byte[] nonce) {
         m_nonce = nonce;
-        m_parsed = true;
     }
     
-    public boolean isParsed() {
-        return m_parsed;
+    public boolean isContractCreation() {
+        return m_receiveAddress == null || Arrays.equals(m_receiveAddress, ByteUtil.EMPTY_BYTE_ARRAY);
     }
     
     public boolean isValueTx() {
-    	rlpParse();
-        return m_value != null;
-    }
-    
-    public byte[] getRawHash() {
-    	rlpParse();
-        byte[] plainMsg = getEncodedRaw();
-        byte[] rawHash = HashUtil.sha3(plainMsg);
-        m_logger.debug("getRawHash rawHash:" + Hex.toHexString(rawHash));
-        return rawHash;
+        return super.getValue() != null;
     }
     
     public byte[] getReceiveAddress() {
-    	rlpParse();
         return m_receiveAddress;
     }
     
     protected void setReceiveAddress(byte[] receiveAddress) {
         m_receiveAddress = receiveAddress;
-        m_parsed = true;
-    }
-    
-    private byte getRealV(BigInteger bv) {
-        if (bv.bitLength() > 31)
-    	{
-        	return 0; // chainId is limited to 31 bits, longer are not valid for now
-    	}
-        long v = bv.longValue();
-        if (v == LOWER_REAL_V || v == (LOWER_REAL_V + 1)) 
-    	{
-    		return (byte) v;
-    	}
-        byte realV = LOWER_REAL_V;
-        int inc = 0;
-        if ((int) v % 2 == 0) {
-        	inc = 1;
-        }
-        return (byte) (realV + inc);
-    }
-    
-    public synchronized byte[] getSender() {
-        try {
-            if (m_senderAddress == null) {
-            	m_senderAddress = ECKey.signatureToAddress(getRawHash(), getSignature());
-            }
-            return m_senderAddress;
-        } catch (SignatureException e) {
-        	m_logger.error(e);
-            //logger.error(e.getMessage(), e);
-        }
-        return null;
     }
 
-    public ECDSASignature getSignature() {
-        rlpParse();
-        return m_signature;
-    }
-    
-    public byte[] getValue() {
-    	rlpParse();
-        return m_value == null ? ByteUtil.ZERO_BYTE_ARRAY : m_value;
-    }
-    
-    protected void setValue(byte[] value) {
-        this.m_value = value;
-        m_parsed = true;
-    }
-    
-	public synchronized void rlpParse() {
-		if (m_parsed)
-		{
-			return;
-		}
-		try {
-			RLPList decodedTxList = RLP.decode2(m_rlpEncoded);
-			RLPList transaction = (RLPList) decodedTxList.get(0);
-			if (transaction.size() > 8)
-			{
-				m_logger.error("Too many RLP elements");
-				throw new RuntimeException("Too many RLP elements");
-			}
-			for (RLPElement rlpElement : transaction) 
-			{
-				if (!(rlpElement instanceof RLPItem))
-				{
-			        m_logger.error("Transaction RLP elements shouldn't be lists");
-					throw new RuntimeException("Transaction RLP elements shouldn't be lists");
-				}
-			}
-			byte[] versionBytes = transaction.get(0).getRLPData();
-	        m_version = versionBytes == null ? 0 : (new BigInteger(1, versionBytes)).intValue();
-			m_nonce = transaction.get(1).getRLPData();
-			m_receiveAddress = transaction.get(2).getRLPData();
-			m_value = transaction.get(3).getRLPData();
-			m_inputData = transaction.get(4).getRLPData();
-			// only parse signature in case tx is signed
-			if (transaction.get(5).getRLPData() != null) {
-				byte[] vData = transaction.get(5).getRLPData();
-				BigInteger v = ByteUtil.bytesToBigInteger(vData);
-				// this.chainId = extractChainIdFromV(v);
-				byte[] r = transaction.get(6).getRLPData();
-				byte[] s = transaction.get(7).getRLPData();
-				m_signature = ECDSASignature.fromComponents(r, s, getRealV(v));
-			} else {
-				m_logger.error("RLP encoded tx is not signed!");
-			}
-			m_parsed = true;
-			m_hash = getHash();
-		} catch (Exception e) {
-	        m_logger.error(e);
-			throw new RuntimeException("Error on parsing RLP", e);
-		}
+	public byte[] getSenderAddress() {
+		return m_senderAddress;
 	}
 
-    private boolean validate() {
+	public void setSenderAddress(byte[] senderAddress) {
+		m_senderAddress = senderAddress;
+	}
+
+	public List<Action> getActions() {
+		return m_actions;
+	}
+
+	public void setActions(List<Action> actions) {
+		m_actions = actions;
+	}
+
+    @Override
+    public boolean validate() {
+    	if(!super.validate())
+    	{
+    		return false;
+    	}
         if (getNonce().length > HASH_LENGTH) 
         {
 			m_logger.error("Nonce is not valid!");
@@ -272,201 +191,100 @@ public class Transaction{
 			m_logger.error("Receive address is not valid!");
 			return false;
         }
-        if (m_value != null  && m_value.length > HASH_LENGTH)
-        {
-			m_logger.error("Value is not valid!");
-			return false;
-        }
-        if (getSignature() != null) {
-            if (BigIntegers.asUnsignedByteArray(m_signature.r).length > HASH_LENGTH)
-            {
-    			m_logger.error("Signature R is not valid!");
-    			return false;
-            }
-            if (BigIntegers.asUnsignedByteArray(m_signature.s).length > HASH_LENGTH)
-            {
-    			m_logger.error("Signature S is not valid!");
-    			return false;
-            }
-            if (getSender() != null && getSender().length != ADDRESS_LENGTH)
-            {
-    			m_logger.error("Sender is not valid!");
-    			return false;
-            }
-        }
         return true;
     }
     
 	public synchronized boolean verify() {
 		m_logger.error("Transaction verify:  TransactionInfo:" + toString());
-		rlpParse();
 		return validate();
 	}
     
-    public long nonZeroDataBytes() {
-        if (m_inputData == null) 
-        {
-        	return 0;
-        }
-        int counter = 0;
-        for (final byte aData : m_inputData) {
-            if (aData != 0)
-            {
-            	++counter;
-            }
-        }
-        return counter;
-    }
-
-    public long zeroDataBytes() {
-        if (m_inputData == null)
-        {
-        	return 0;
-        }
-        int counter = 0;
-        for (final byte aData : m_inputData) {
-            if (aData == 0)
-            {
-            	++counter;
-            }
-        }
-        return counter;
-    }
-
-    public byte[] getContractAddress() {
-        if (!isContractCreation()) 
-        {
-        	return null;
-        }
-        return HashUtil.calcNewAddr(getSender(), getNonce());
-    }
-    
-    public boolean isContractCreation() {
-    	rlpParse();
-        return m_receiveAddress == null || Arrays.equals(m_receiveAddress, ByteUtil.EMPTY_BYTE_ARRAY);
-    }
-
-    /**
-     * @deprecated should prefer #sign(ECKey) over this method
-     */
-    public void sign(byte[] privKeyBytes) throws MissingPrivateKeyException {
-        sign(ECKey.fromPrivate(privKeyBytes));
-    }
-    
-    public void sign(ECKey key) throws MissingPrivateKeyException {
-        m_signature = key.sign(getRawHash());
-        m_logger.debug("getRawHash sign signature:" + m_signature.toHex());
-        m_rlpEncoded = null;
-    }
-    
     @Override
     public String toString() {
-        return toString(Integer.MAX_VALUE);
+        return toString("\n");
     }
     
-    public String toString(int maxDataSize) {
-    	rlpParse();
-        String dataS = "";
-        if (m_inputData == null) {
-            dataS = "";
-        } else if (m_inputData.length < maxDataSize) {
-            dataS = ByteUtil.toHexString(m_inputData);
-        } else {
-            dataS = ByteUtil.toHexString(Arrays.copyOfRange(m_inputData, 0, maxDataSize)) +
-                    "... (" + m_inputData.length + " bytes)";
-        }
-        String result = "TransactionData [" + " version=" + m_version
-        		+", hash=" + ByteUtil.toHexString(m_hash) +
-                ", nonce=" + ByteUtil.toHexString(m_nonce) +
-                ", receiveAddress=" + ByteUtil.toHexString(m_receiveAddress) +
-                ", sendAddress=" + ByteUtil.toHexString(getSender()) +
-                ", value=" + ByteUtil.toHexString(m_value) +
-                ", data=" + dataS +
-                ", signatureV=" + (m_signature == null ? "" : m_signature.v) +
-                ", signatureR=" + (m_signature == null ? "" : 
-                	ByteUtil.toHexString(BigIntegers.asUnsignedByteArray(m_signature.r))) +
-                ", signatureS=" + (m_signature == null ? "" : 
-                	ByteUtil.toHexString(BigIntegers.asUnsignedByteArray(m_signature.s))) +
-                "]";
-        m_logger.debug("toString result:" + result);
-        return result;
-    }
-    
-    public byte[] getEncodedRaw() {
-    	rlpParse();
-        if (m_rlpRaw != null) 
-        {
-        	return m_rlpRaw;
-        }
-        byte[] version = RLP.encodeInt(m_version);
-        // parse null as 0 for nonce
-        byte[] nonce = null;
-        if (m_nonce == null || m_nonce.length == 1 && m_nonce[0] == 0) {
-            nonce = RLP.encodeElement(null);
-        } else {
-            nonce = RLP.encodeElement(m_nonce);
-        }
-        byte[] receiveAddress = RLP.encodeElement(m_receiveAddress);
-        byte[] value = RLP.encodeElement(m_value);
-        byte[] data = RLP.encodeElement(m_inputData);
+    public String toString(final String suffix) {
 
-    	m_rlpRaw = RLP.encodeList(version, nonce, receiveAddress, value, data);
-        return m_rlpRaw;
-    }
-    
-    public byte[] getEncoded() {
-
-        if (m_rlpEncoded != null) 
-        {
-        	return m_rlpEncoded;
-        }
-        byte[] version = RLP.encodeBigInteger(BigInteger.valueOf(m_version));
-        byte[] nonce = null;
-        if (m_nonce == null || m_nonce.length == 1 && m_nonce[0] == 0)
-        {
-            nonce = RLP.encodeElement(null);
-        } 
-        else
-        {
-            nonce = RLP.encodeElement(m_nonce);
-        }
-        byte[] receiveAddress = RLP.encodeElement(m_receiveAddress);
-        byte[] value = RLP.encodeElement(m_value);
-        byte[] data = RLP.encodeElement(m_inputData);
-        byte[] v = null;
-        byte[] r = null;
-        byte[] s = null;
-        if (m_signature != null) {
-            int encodeV = m_signature.v;
-            v = RLP.encodeInt(encodeV);
-            r = RLP.encodeElement(BigIntegers.asUnsignedByteArray(m_signature.r));
-            s = RLP.encodeElement(BigIntegers.asUnsignedByteArray(m_signature.s));
-        } else {
-            v = RLP.encodeElement(ByteUtil.EMPTY_BYTE_ARRAY);
-            r = RLP.encodeElement(ByteUtil.EMPTY_BYTE_ARRAY);
-            s = RLP.encodeElement(ByteUtil.EMPTY_BYTE_ARRAY);
-        }
-        m_logger.debug("getRawHash v\t\t\t: " + Hex.toHexString(v));
-        m_logger.debug("getRawHash r\t\t\t: " + Hex.toHexString(r));
-        m_logger.debug("getRawHash s\t\t\t: " + Hex.toHexString(s));
-        m_rlpEncoded = RLP.encodeList(version, nonce, receiveAddress, value, data, v, r, s);
-        m_logger.debug("getRawHash m_rlpEncoded\t\t\t: " + Hex.toHexString(m_rlpEncoded));
-        m_hash = getHash();
-        m_logger.debug("getRawHash getEncoded m_hash:" + Hex.toHexString(m_hash));
-        return m_rlpEncoded;
-    }
-    
-    public ECKey getKey() {
-        byte[] hash = getRawHash();
-        //return ECKey.recoverFromSignature(m_signature.v, m_signature, hash);
-        try {
-			return ECKey.signatureToKey(hash, m_signature);
-		} catch (SignatureException e) {
-			// TODO Auto-generated catch block
-			m_logger.error(e);
-			e.printStackTrace();
-			return null;
+        StringBuilder toStringBuff = new StringBuilder();
+        toStringBuff.append("  Transaction[version=").append(getVersion()).append(suffix);
+        toStringBuff.append("  hash=").append(ByteUtil.toHexString(getHash())).append(suffix);
+        toStringBuff.append("  nonce=").append(ByteUtil.toHexString(m_nonce)).append(suffix);
+        toStringBuff.append("  receiveAddress=").append(ByteUtil.toHexString(m_receiveAddress)).append(suffix);
+        toStringBuff.append("  sendAddress=").append(ByteUtil.toHexString(m_senderAddress)).append(suffix);
+        toStringBuff.append("  value=").append(ByteUtil.toHexString(getValue())).append(suffix);
+        toStringBuff.append("  refBlockheight=").append(getRefBlockHeight()).append(suffix);
+        toStringBuff.append("  timestamp=").append(getTimeStamp()).append(suffix);
+        toStringBuff.append("  privateNote=").append(m_privateNote).append(suffix);
+        toStringBuff.append("  expiration=").append(getExpiration()).append(suffix);		
+        if (!m_actions.isEmpty()) {
+			toStringBuff.append("Actions [\n");
+			for (Action action : m_actions) {
+				toStringBuff.append(action.toString());
+				toStringBuff.append("\n");
+			}
+			toStringBuff.append("]\n");
+		} else {
+			toStringBuff.append("Actions []\n");
 		}
+        toStringBuff.append("  ]");
+        return toStringBuff.toString();
+    }
+
+    @Override
+    public byte[] getEncoded()  {
+    	try
+    	{
+			ObjectMapper mapper = new ObjectMapper();
+		    ObjectNode transactionNode = mapper.createObjectNode();
+		    toJson(transactionNode);
+	    	String content = mapper.writeValueAsString (transactionNode);
+	    	m_logger.debug(" Json Content:" + content);
+		    return content.getBytes();
+    	}catch(JsonProcessingException ex){
+    		m_logger.error("getEncoded error:" + ex.getMessage());
+    		return null;
+    	}	    
+    }
+
+    @Override
+    public byte[] getEncodedRaw()  {
+    	try
+    	{
+			ObjectMapper mapper = new ObjectMapper();
+		    ObjectNode transactionNode = mapper.createObjectNode();
+			
+	    	String nonce = Hex.toHexString(m_nonce);
+	    	String receiveAddress = Hex.toHexString(m_receiveAddress);
+	    	String senderAddress = Hex.toHexString(m_senderAddress);
+	    	String value = Hex.toHexString(getValue());
+	    	
+	    	m_logger.debug("getEncoded refBlockHeight\t\t\t: " + getRefBlockHeight());
+	    	m_logger.debug("getEncoded nonce\t\t\t: " + nonce);
+	    	m_logger.debug("getEncoded privateNote\t\t\t: " + m_privateNote);
+	    	m_logger.debug("getEncoded receiveAddress\t\t\t: " + receiveAddress);
+	    	m_logger.debug("getEncoded senderAddress\t\t\t: " + senderAddress);
+	    	m_logger.debug("getEncoded timeStamp\t\t\t: " + getTimeStamp());
+	    	m_logger.debug("getEncoded version\t\t\t: " + getVersion());
+	    	m_logger.debug("getEncoded value\t\t\t: " + value);    
+	    	m_logger.debug("getEncoded expiration\t\t\t: " + getExpiration());    
+	    	
+	    	transactionNode.put("refBlockHeight", getRefBlockHeight());
+	    	transactionNode.put("nonce", nonce);
+	    	transactionNode.put("privateNote", m_privateNote);
+	    	transactionNode.put("receiveAddress", receiveAddress);
+	    	transactionNode.put("senderAddress", senderAddress);
+	    	transactionNode.put("timeStamp", getTimeStamp());
+	    	transactionNode.put("version", getVersion());
+	    	transactionNode.put("value", value);
+	    	transactionNode.put("expiration", getExpiration());
+	    	String content = mapper.writeValueAsString (transactionNode);
+	    	m_logger.debug(" Json Content:" + content);
+		    return content.getBytes();
+    	}catch(JsonProcessingException ex){
+    		m_logger.error("getEncoded error:" + ex.getMessage());
+    		return null;
+    	}	    
     }
     
     @Override
@@ -489,15 +307,112 @@ public class Transaction{
         Transaction tx = (Transaction) obj;
         return tx.hashCode() == this.hashCode();
     }
-    
-    public static Transaction createDefault(String to, BigInteger amount, BigInteger nonce, Integer chainId){
-        return create(to, amount, nonce, chainId);
+
+	@Override
+    public void toJson(ObjectNode transactionNode){    	
+		super.toJson(transactionNode);
+    	String hash = Hex.toHexString(getHash());
+    	String nonce = Hex.toHexString(m_nonce);
+    	String receiveAddress = Hex.toHexString(m_receiveAddress);
+    	String senderAddress = Hex.toHexString(m_senderAddress);
+    	
+    	m_logger.debug("toJson hash\t\t\t: " + hash);
+    	m_logger.debug("toJson nonce\t\t\t: " + nonce);
+    	m_logger.debug("toJson privateNote\t\t\t: " + m_privateNote);
+    	m_logger.debug("toJson receiveAddress\t\t\t: " + receiveAddress);
+    	m_logger.debug("toJson senderAddress\t\t\t: " + senderAddress);
+    	
+    	if(m_actions != null){
+    		ArrayNode transNodes = transactionNode.arrayNode();
+    		int size = m_actions.size();
+    		for(int i = 0 ; i < size; i++){
+    			ObjectNode transNode = transactionNode.objectNode();
+    			m_actions.get(i).toJson(transNode);
+    			transNodes.add(transNode);
+    		}
+    		transactionNode.set("actions", transNodes);
+    	}
+    	
+    	transactionNode.put("hash", hash);
+    	transactionNode.put("nonce", nonce);
+    	transactionNode.put("privateNote", m_privateNote);
+    	transactionNode.put("receiveAddress", receiveAddress);
+    	transactionNode.put("senderAddress", senderAddress);
     }
+
+	@Override
+	public synchronized void jsonParse(JsonNode transactionNode) {
+		try {
+			super.jsonParse(transactionNode);		
+			String hash = transactionNode.get("hash").asText();
+			String nonce = transactionNode.get("nonce").asText();
+			m_privateNote = transactionNode.get("privateNote").asText();
+			String receiveAddress = transactionNode.get("receiveAddress").asText();
+			String senderAddress = transactionNode.get("senderAddress").asText();
+	       
+	        setHash(Numeric.hexStringToByteArray(hash));
+	        m_nonce = Numeric.hexStringToByteArray(nonce);
+	        m_receiveAddress = Numeric.hexStringToByteArray(receiveAddress);
+	        m_senderAddress = Numeric.hexStringToByteArray(senderAddress);
+	        
+			if(m_actions == null){
+				m_actions = new CopyOnWriteArrayList<>();
+			}
+			JsonNode trans = transactionNode.get("actions");
+			for (JsonNode tran : trans) {  
+				Action action = new Action();
+				action.jsonParse(tran);
+				m_actions.add(action);
+			}			
+	        m_logger.debug("jsonParse hash\t\t\t: " + hash);
+	        m_logger.debug("jsonParse nonce\t\t\t: " + nonce);
+	        m_logger.debug("jsonParse privateNote\t\t\t: " + m_privateNote);
+	        m_logger.debug("jsonParse receiveAddress\t\t\t: " + receiveAddress);
+	        m_logger.debug("jsonParse senderAddress\t\t\t: " + senderAddress);
+		}catch (Exception e) {
+			 m_logger.error(e);
+			 throw new RuntimeException("Error on parsing Json", e);
+		}
+	}
+	
+    @Override
+	public String toJson(){
+		try{
+			ObjectMapper mapper = new ObjectMapper();
+			ObjectNode blockHeaderNode = mapper.createObjectNode();
+			toJson(blockHeaderNode);
+			String jsonStr =  mapper.writeValueAsString (blockHeaderNode);
+			m_logger.debug(" Transaction Json String is :" + jsonStr);
+			return jsonStr;
+		}
+		catch(Exception ex){
+			m_logger.error(" Transaction toJson error:" + ex.getMessage());
+			return "";
+		}
+	}
+
+    @Override
+	public synchronized void jsonParse(String json) {
+		try{
+			ObjectMapper mapper = new ObjectMapper();
+			JsonNode blockHeaderNode = mapper.readTree(json); 
+			jsonParse(blockHeaderNode);
+		}
+		catch(IOException ex){
+			m_logger.error(" Transaction jsonParse error:" + ex.getMessage());
+		}
+	}
+
+	public Transaction(byte[] m_nonce, String m_privateNote, byte[] m_receiveAddress, byte[] m_senderAddress,
+			List<Action> m_actions) {
+		super();
+		this.m_nonce = m_nonce;
+		this.m_privateNote = m_privateNote;
+		this.m_receiveAddress = m_receiveAddress;
+		this.m_senderAddress = m_senderAddress;
+		this.m_actions = m_actions;
+	}
     
-    public static Transaction create(String to, BigInteger amount, BigInteger nonce, Integer chainId){
-        return new Transaction(BigIntegers.asUnsignedByteArray(nonce),
-                Hex.decode(to),
-                BigIntegers.asUnsignedByteArray(amount),
-                null);
-    }
+	
+    
 }

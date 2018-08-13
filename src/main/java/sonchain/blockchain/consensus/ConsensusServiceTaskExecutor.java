@@ -40,8 +40,9 @@ public class ConsensusServiceTaskExecutor implements Callable<Integer>{
 	                if ((consensusService.m_context.m_state & ConsensusContext.SignatureSent) == 0)
 	                {
 	            		Calendar now = Calendar.getInstance(Locale.CHINA);
-	            		consensusService.m_context.m_timestamp = Math.max(now.getTimeInMillis(), 
-	            				consensusService.m_blockChain.getBlockByHash(consensusService.m_context.m_preHash).getTimestamp() + 1);
+	            		//TODO
+	            		//consensusService.m_context.m_timestamp = Math.max(now.getTimeInMillis(), 
+	            		//		consensusService.m_blockChain.getBlockByHash(consensusService.m_context.m_preHash).getTimestamp() + 1);
 	            		consensusService.m_context.m_signatures[consensusService.m_context.m_myIndex]
 	            				//= m_consensusService.m_context.makeHeader().sign(m_consensusService.m_context.m_keyPair);
         						= consensusService.m_context.makeHeader().getEncoded();

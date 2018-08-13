@@ -16,14 +16,6 @@ import sonchain.blockchain.core.Transaction;
  */
 public class SonChainData 
 {
-	/**
-	 * 消息类型
-	 * 0：默认
-	 * 1：交易列表
-	 * 2：挖矿完成通知
-	 * 3：区块确认通知
-	 * 4：区块更新通知
-	 */
 	public int m_type = 0;	
 	
     public String m_text = "";

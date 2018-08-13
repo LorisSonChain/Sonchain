@@ -8,53 +8,75 @@ import javax.annotation.PreDestroy;
 
 import sonchain.blockchain.core.TransactionInfo;
 import sonchain.blockchain.datasource.ObjectDataSource;
-import sonchain.blockchain.datasource.Serializer;
-import sonchain.blockchain.datasource.Source;
+import sonchain.blockchain.datasource.base.Serializer;
+import sonchain.blockchain.datasource.base.Source;
 import sonchain.blockchain.util.FastByteComparisons;
 import sonchain.blockchain.util.RLP;
 import sonchain.blockchain.util.RLPList;
 
 import org.apache.commons.collections4.map.LRUMap;
 import org.apache.log4j.Logger;
+import org.bouncycastle.util.encoders.Hex;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 public class TransactionStore extends ObjectDataSource<List<TransactionInfo>> {
 
 	public static final Logger m_logger = Logger.getLogger(TransactionStore.class);
-	private final LRUMap<ByteArrayWrapper, Object> m_lastSavedTxHash = new LRUMap<>(5000);
+	private final LRUMap<StringWrapper, Object> m_lastSavedTxHash = new LRUMap<>(5000);
 	private final Object m_object = new Object();
 
-	private final static Serializer<List<TransactionInfo>, byte[]> serializer = new Serializer<List<TransactionInfo>, byte[]>() {
+	private final static Serializer<List<TransactionInfo>, String> serializer = new Serializer<List<TransactionInfo>, String>() {
 		@Override
-		public byte[] serialize(List<TransactionInfo> object) {
-			byte[][] txsRlp = new byte[object.size()][];
-			for (int i = 0; i < txsRlp.length; i++) {
-				txsRlp[i] = object.get(i).getEncoded();
+		public String serialize(List<TransactionInfo> object) {
+			try
+			{
+				ObjectMapper mapper = new ObjectMapper(); 
+				ArrayNode arrayNode = mapper.createArrayNode();
+				for(int i = 0; i < object.size(); i++){
+					TransactionInfo info = object.get(i);
+					ObjectNode node = mapper.createObjectNode();
+					info.toJson(node);
+					arrayNode.add(node);
+				}
+				String jsonStr =  mapper.writeValueAsString (arrayNode);
+				m_logger.debug(" TransactionStore serializer Json String is :" + jsonStr);
+				return jsonStr;
 			}
-			return RLP.encodeList(txsRlp);
+			catch(Exception ex){
+				m_logger.error(" TransactionStore serializer error:" + ex.getMessage());
+				return "";
+			}
 		}
 
 		@Override
-		public List<TransactionInfo> deserialize(byte[] stream) {
+		public List<TransactionInfo> deserialize(String stream) {
 			try {
 				if (stream == null){
 					return null;
 				}
-				RLPList params = RLP.decode2(stream);
-				RLPList infoList = (RLPList) params.get(0);
-				List<TransactionInfo> ret = new ArrayList<>();
-				for (int i = 0; i < infoList.size(); i++) {
-					ret.add(new TransactionInfo(infoList.get(i).getRLPData()));
+				ObjectMapper mapper = new ObjectMapper(); 
+				JsonNode node = mapper.readTree(stream); 
+				List<TransactionInfo> infos = new ArrayList<TransactionInfo>();
+				for(JsonNode childNode : node){
+					TransactionInfo info = new TransactionInfo();
+					info.jsonParse(childNode);
+					infos.add(info);
 				}
-				return ret;
+				return infos;
 			} catch (Exception e) {
 				// fallback to previous DB version
-				return Collections.singletonList(new TransactionInfo(stream));
+				return null;
 			}
 		}
 	};
 
 	public TransactionInfo get(byte[] txHash, byte[] blockHash) {
-		List<TransactionInfo> existingInfos = get(txHash);
+		String strHash = Hex.toHexString(txHash);
+		List<TransactionInfo> existingInfos = get(strHash);
 		for (TransactionInfo info : existingInfos) {
 			if (FastByteComparisons.equal(info.getBlockHash(), blockHash)) {
 				return info;
@@ -64,12 +86,12 @@ public class TransactionStore extends ObjectDataSource<List<TransactionInfo>> {
 	}
 
 	public boolean put(TransactionInfo tx) {
-		byte[] txHash = tx.getReceipt().getTransaction().getHash();
-
+		byte[] txHash =  tx.getReceipt().getTransaction().getTransaction().getHash();
+		String strHash = Hex.toHexString(txHash);
 		List<TransactionInfo> existingInfos = null;
 		synchronized (m_lastSavedTxHash) {
-			if (m_lastSavedTxHash.put(new ByteArrayWrapper(txHash), m_object) != null || !m_lastSavedTxHash.isFull()) {
-				existingInfos = get(txHash);
+			if (m_lastSavedTxHash.put(new StringWrapper(strHash), m_object) != null || !m_lastSavedTxHash.isFull()) {
+				existingInfos = get(strHash);
 			}
 		}
 		// else it is highly unlikely that the transaction was included into
@@ -87,11 +109,11 @@ public class TransactionStore extends ObjectDataSource<List<TransactionInfo>> {
 			}
 		}
 		existingInfos.add(tx);
-		put(txHash, existingInfos);
+		put(strHash, existingInfos);
 		return true;
 	}
 
-	public TransactionStore(Source<byte[], byte[]> src) {
+	public TransactionStore(Source<String, String> src) {
 		super(src, serializer, 256);
 	}
 

@@ -24,16 +24,18 @@ public class BlockSummary {
 	 */
 	public BlockSummary(byte[] rlp) {
 		RLPList summary = (RLPList) RLP.decode2(rlp).get(0);
-		m_block = new Block(summary.get(0).getRLPData());
+		//TODO
+		//m_block = new Block(summary.get(0).getRLPData());
 		m_summaries = decodeSummaries((RLPList) summary.get(1));
 		m_receipts = new ArrayList<>();
 
 		Map<String, TransactionReceipt> receiptByTxHash = decodeReceipts((RLPList) summary.get(2));
-		List<Transaction> listTransaction = m_block.getTransactionsList();
-		for (Transaction tx : listTransaction) {
-			TransactionReceipt receipt = receiptByTxHash.get(ByteUtil.toHexString(tx.getHash()));
-			receipt.setTransaction(tx);
-			m_receipts.add(receipt);
+		List<TransactionReceipt> listTransaction = m_block.getTransactionsList();
+		for (TransactionReceipt tx : listTransaction) {
+			//TODO
+			//TransactionReceipt receipt = receiptByTxHash.get(ByteUtil.toHexString(tx.getHash()));
+			//receipt.setTransaction(tx);
+			//m_receipts.add(receipt);
 		}
 	}
 
@@ -94,7 +96,9 @@ public class BlockSummary {
 		}, new Functional.Function<byte[], TransactionReceipt>() {
 			@Override
 			public TransactionReceipt apply(byte[] encoded) {
-				return new TransactionReceipt(encoded);
+				//TODO
+				return null;
+				//return new TransactionReceipt(encoded);
 			}
 		});
 	}
@@ -140,7 +144,8 @@ public class BlockSummary {
 	private static byte[] encodeReceipts(List<TransactionReceipt> receipts) {
 		Map<String, TransactionReceipt> receiptByTxHash = new HashMap<>();
 		for (TransactionReceipt receipt : receipts) {
-			receiptByTxHash.put(ByteUtil.toHexString(receipt.getTransaction().getHash()), receipt);
+			//TODO
+			//receiptByTxHash.put(ByteUtil.toHexString(receipt.getTransaction().getHash()), receipt);
 		}
 		return encodeMap(receiptByTxHash, new Functional.Function<String, byte[]>() {
 			@Override
@@ -150,7 +155,9 @@ public class BlockSummary {
 		}, new Functional.Function<TransactionReceipt, byte[]>() {
 			@Override
 			public byte[] apply(TransactionReceipt receipt) {
-				return receipt.getEncoded();
+				//TODO
+				return null;
+				//return receipt.getEncoded();
 			}
 		});
 	}

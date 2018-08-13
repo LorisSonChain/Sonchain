@@ -7,6 +7,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.channels.FileChannel;
 
 /** 
  CFileA
@@ -29,6 +30,38 @@ public class CFileA
 		{
 			return false;
 		}
+	}
+	
+	public static boolean CopyFile(String src, String desc){
+	    FileChannel inputChannel = null;
+	    FileChannel outputChannel = null;
+	    try {
+	    	File source = new File(src);
+	    	File desction = new File(desc);
+	        inputChannel = new FileInputStream(source).getChannel();
+	        outputChannel = new FileOutputStream(desction).getChannel();
+	        outputChannel.transferFrom(inputChannel, 0, inputChannel.size());
+	        return true;
+	    } 
+	    catch(Exception ex)
+	    {
+	    	return false;
+	    }
+    	finally {
+    	    try {
+	    		if(inputChannel != null){
+	    	        inputChannel.close();
+	    		}
+	    		if(outputChannel != null){
+	
+	    	        outputChannel.close();
+	    		}
+    		}
+		    catch(Exception ex)
+		    {
+		    	return false;
+		    }
+	    }
 	}
 	
 	public static void CreateDirectory(String dir)

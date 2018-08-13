@@ -1,10 +1,14 @@
 package sonchain.blockchain.datasource;
 
-public class SourceCodec<Key, Value, SourceKey, SourceValue>
-		extends AbstractChainedSource<Key, Value, SourceKey, SourceValue> {
+import sonchain.blockchain.datasource.base.AbstractSource;
+import sonchain.blockchain.datasource.base.Serializer;
+import sonchain.blockchain.datasource.base.Source;
 
-	protected Serializer<Key, SourceKey> m_keySerializer;
-	protected Serializer<Value, SourceValue> m_valSerializer;
+public class SourceCodec<Key, Value, SourceKey, SourceValue>
+		extends AbstractSource<Key, Value, SourceKey, SourceValue> {
+
+	protected Serializer<Key, SourceKey> m_keySerializer = null;
+	protected Serializer<Value, SourceValue> m_valSerializer = null;
 
 	/**
 	 * Instantiates class

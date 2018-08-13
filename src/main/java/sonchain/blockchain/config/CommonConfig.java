@@ -10,6 +10,9 @@ import sonchain.blockchain.core.BlockHeader;
 import sonchain.blockchain.core.Repository;
 import sonchain.blockchain.crypto.HashUtil;
 import sonchain.blockchain.datasource.*;
+import sonchain.blockchain.datasource.base.AbstractCachedSource;
+import sonchain.blockchain.datasource.base.DbSource;
+import sonchain.blockchain.datasource.base.Source;
 import sonchain.blockchain.datasource.inmem.HashMapDB;
 import sonchain.blockchain.datasource.leveldb.LevelDbDataSource;
 import sonchain.blockchain.datasource.redis.RedisDbDataSource;
@@ -41,13 +44,13 @@ public class CommonConfig {
     
     public void fastSyncCleanUp() {
     	m_logger.debug("fastSyncCleanUp start");
-        byte[] fastsyncStageBytes = getBlockChainDB().get(FastSyncManager.FASTSYNC_DB_KEY_SYNC_STAGE);
-        if (fastsyncStageBytes == null) 
+        String fastsyncStage = getBlockChainDB().get(FastSyncManager.FASTSYNC_DB_KEY_SYNC_STAGE);
+        if (fastsyncStage.length() == 0) 
         {
         	m_logger.debug("fastSyncCleanUp end");
         	return;
         }
-        SonChainListener.SyncState syncStage = SonChainListener.SyncState.values()[fastsyncStageBytes[0]];
+        SonChainListener.SyncState syncStage = SonChainListener.SyncState.values()[Integer.valueOf(fastsyncStage)];
         if (!DataCenter.m_config.m_syncFastEnabled || syncStage == SonChainListener.SyncState.UNSECURE) {
             // we need to cleanup state/blocks/tranasaction DBs when previous fast sync was not complete:
             // - if we now want to do regular sync
@@ -59,14 +62,14 @@ public class CommonConfig {
     	m_logger.debug("fastSyncCleanUp end");
     }
     
-    public DbSource<byte[]> getBlockChainDB() {
+    public DbSource<String> getBlockChainDB() {
     	m_logger.debug("getBlockChainDB start");
         return getKeyValueDataSource("sonchain");
     }
     
-    public AbstractCachedSource<byte[], byte[]> getBlockChainDbCache(String cacheName) {
+    public AbstractCachedSource<String, String> getBlockChainDbCache(String cacheName) {
     	m_logger.debug("getBlockChainDbCache start");
-        WriteCache.BytesKey<byte[]> ret = new WriteCache.BytesKey<>(
+        WriteCache.StringKey<String> ret = new WriteCache.StringKey<>(
                 new BatchSourceWriter<>(getBlockChainDB()), WriteCache.CacheType.SIMPLE);
         ret.setFlushSource(true);
         ret.withCacheName(cacheName);
@@ -74,27 +77,16 @@ public class CommonConfig {
         return ret;
     }
     
-    public Source<byte[], byte[]> getBlockChainSource(String name) {
+    public Source<String, String> getBlockChainSource(String name) {
     	m_logger.debug("getBlockChainSource start");
-    	Source<byte[], byte[]> source =  new XorDataSource<>(getBlockChainDbCache(name), 
-    			HashUtil.sha3(name.getBytes()), name);
+    	Source<String, String> source =  new XorDataSource<>(getBlockChainDbCache(name), name, name);
     	return source;
     }
     
-    public Source<byte[], byte[]> getCachedDbSource(String name) {
+    public Source<String, String> getCachedDbSource(String name) {
     	m_logger.debug("getCachedDbSource start");
-//        AbstractCachedSource<byte[], byte[]>  writeCache 
-//        	= new AsyncWriteCache<byte[], byte[]>(getBlockChainSource(name)) {
-//            @Override
-//            protected WriteCache<byte[], byte[]> CreateCache(Source<byte[], byte[]> source) {
-//                WriteCache.BytesKey<byte[]> ret = new WriteCache.BytesKey<>(source, WriteCache.CacheType.SIMPLE);
-//                ret.withSizeEstimators(MemSizeEstimator.ByteArrayEstimator, MemSizeEstimator.ByteArrayEstimator);
-//                ret.setFlushSource(true);
-//                return ret;
-//            }
-//        }.withName(name);
-    	WriteCache<byte[], byte[]> writeCache
-  			= new WriteCache.BytesKey(getBlockChainSource(name), WriteCache.CacheType.SIMPLE);
+    	WriteCache<String, String> writeCache
+  			= new WriteCache.StringKey(getBlockChainSource(name), WriteCache.CacheType.SIMPLE);
     	writeCache.setFlushSource(true);
     	writeCache.withCacheName(name);
         getDbFlushManager().addCache(writeCache);
@@ -105,24 +97,10 @@ public class CommonConfig {
     public DbFlushManager getDbFlushManager() {
     	m_logger.debug("getDbFlushManager start");
     	if(m_dbFlushManager == null){
-    		m_dbFlushManager = new DbFlushManager(m_dbSources, getBlockChainDbCache(""));
+    		//TODO
+    		//m_dbFlushManager = new DbFlushManager(m_dbSources, getBlockChainDbCache(""));
     	}
         return m_dbFlushManager;
-    }
-    
-    public DataSourceArray<BlockHeader> getHeaderSource() {
-    	m_logger.debug("getHeaderSource start");
-        DbSource<byte[]> dataSource = getKeyValueDataSource("headers");
-        BatchSourceWriter<byte[], byte[]> batchSourceWriter = new BatchSourceWriter<>(dataSource);
-        WriteCache.BytesKey<byte[]> writeCache = new WriteCache.BytesKey<>(batchSourceWriter,
-        		WriteCache.CacheType.SIMPLE);
-        writeCache.withSizeEstimators(MemSizeEstimator.ByteArrayEstimator, MemSizeEstimator.ByteArrayEstimator);
-        writeCache.setFlushSource(true);
-        writeCache.withCacheName("headers");
-        ObjectDataSource<BlockHeader> objectDataSource = new ObjectDataSource<>(dataSource, Serializers.BlockHeaderSerializer, 0);
-        DataSourceArray<BlockHeader> dataSourceArray = new DataSourceArray<>(objectDataSource);
-    	m_logger.debug("getHeaderSource end");
-        return dataSourceArray;
     }
     
     public BlockHeaderValidator getHeaderValidator() {
@@ -139,7 +117,7 @@ public class CommonConfig {
         return new RepositoryRoot(getStateSource(), null);
     }  
 
-	public DbSource<byte[]> getKeyValueDataSource(String name) {
+	public DbSource<String> getKeyValueDataSource(String name) {
 		m_logger.debug("getKeyValueDataSource start name:" + name);
 	    String dataSource = DataCenter.m_config.m_keyvalueDatasource;
 	    try {
@@ -148,7 +126,7 @@ public class CommonConfig {
 	    	}
 	    	else
 	    	{
-	            DbSource<byte[]> dbSource = null;
+	            DbSource<String> dbSource = null;
 	            if ("inmem".equals(dataSource)) {
 	            	dbSource = new HashMapDB<>();
 	            }
@@ -187,7 +165,7 @@ public class CommonConfig {
     
     public PeerSource getPeerSource() {
     	m_logger.debug("getPeerSource start");
-        DbSource<byte[]> dbSource = getKeyValueDataSource("peers");
+        DbSource<String> dbSource = getKeyValueDataSource("peers");
         m_dbSources.add(dbSource);
         return new PeerSource(dbSource);
     }
@@ -207,14 +185,30 @@ public class CommonConfig {
         return new RepositoryRoot(getStateSource(), stateRoot);
     }
     
+    public DataSourceArray<BlockHeader> getHeaderSource() {
+    	m_logger.debug("getHeaderSource start");
+        DbSource<String> dataSource = getKeyValueDataSource("headers");
+        BatchSourceWriter<String, String> batchSourceWriter = new BatchSourceWriter<>(dataSource);
+        WriteCache.StringKey<String> writeCache = new WriteCache.StringKey<>(batchSourceWriter,
+        		WriteCache.CacheType.SIMPLE);
+        writeCache.setFlushSource(true);
+        writeCache.withCacheName("headers");
+        ObjectDataSource<BlockHeader> objectDataSource = new ObjectDataSource<>(dataSource, Serializers.BlockHeaderSerializer, 0);
+        DataSourceArray<BlockHeader> dataSourceArray = new DataSourceArray<>(objectDataSource);
+    	m_logger.debug("getHeaderSource end");
+        return dataSourceArray;
+    }
+    
     public StateSource getStateSource() {
     	m_logger.debug("getStateSource start");
-        fastSyncCleanUp();
-        StateSource stateSource = new StateSource(getBlockChainSource("state"),
-        		false, DataCenter.m_config.m_cacheMaxStateBloomSize << 20);
-        getDbFlushManager().addCache(stateSource.getWriteCache());
-    	m_logger.debug("getStateSource end");
-        return stateSource;
+    	return null;
+    	//TODO
+//        fastSyncCleanUp();
+//        StateSource stateSource = new StateSource(getBlockChainSource("state"),
+//        		false, DataCenter.m_config.m_cacheMaxStateBloomSize << 20);
+//        getDbFlushManager().addCache(stateSource.getWriteCache());
+//    	m_logger.debug("getStateSource end");
+//        return stateSource;
     }
     
     public ParentBlockHeaderValidator getParentHeaderValidator() {

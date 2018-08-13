@@ -11,7 +11,7 @@ import org.bouncycastle.util.encoders.Hex;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import sonchain.blockchain.crypto.HashUtil;
-import sonchain.blockchain.datasource.Source;
+import sonchain.blockchain.datasource.base.Source;
 import sonchain.blockchain.datasource.inmem.HashMapDB;
 import sonchain.blockchain.util.ByteUtil;
 import sonchain.blockchain.util.FastByteComparisons;
@@ -297,7 +297,7 @@ public class TrieImpl implements Trie<byte[]> {
                     return ret;
                 } else {
                 	m_hash = HashUtil.sha3(ret);
-                    addHash(m_hash, ret);
+                    addHash(ByteUtil.toHexString(m_hash), ByteUtil.toHexString(ret));
                 	m_logger.debug("encode end result:" + Hex.toHexString(m_hash));
                     return RLP.encodeElement(m_hash);
                 }
@@ -428,7 +428,7 @@ public class TrieImpl implements Trie<byte[]> {
     }
 
     private boolean m_async = true;
-    private Source<byte[], byte[]> m_cache = null;
+    private Source<String, String> m_cache = null;
     private Node m_root = null;
 
     public TrieImpl() {
@@ -436,19 +436,19 @@ public class TrieImpl implements Trie<byte[]> {
     }
 
     public TrieImpl(byte[] root) {
-        this(new HashMapDB<byte[]>(), root);
+        this(new HashMapDB<String>(), root);
     }
 
-    public TrieImpl(Source<byte[], byte[]> cache) {
+    public TrieImpl(Source<String, String> cache) {
         this(cache, null);
     }
     
-    public TrieImpl(Source<byte[], byte[]> cache, byte[] root) {
+    public TrieImpl(Source<String, String> cache, byte[] root) {
     	m_cache = cache;
         setRoot(root);
     }
     
-    private void addHash(byte[] hash, byte[] ret) {
+    private void addHash(String hash, String ret) {
     	m_cache.put(hash, ret);
     }
     
@@ -532,7 +532,7 @@ public class TrieImpl implements Trie<byte[]> {
     }
     
     private void deleteHash(byte[] hash) {
-    	m_cache.delete(hash);
+    	m_cache.delete(ByteUtil.toHexString(hash));
     }
     
     public String DumpStructure() {
@@ -615,12 +615,13 @@ public class TrieImpl implements Trie<byte[]> {
         }
     }
 
-    public Source<byte[], byte[]> getCache() {
+    public Source<String, String> getCache() {
         return m_cache;
     }
 
     private byte[] getHash(byte[] hash) {
-        return m_cache.get(hash);
+    	//TODO
+        return m_cache.get(ByteUtil.toHexString(hash)).getBytes();
     }
 
     @Override

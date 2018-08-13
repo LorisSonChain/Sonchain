@@ -8,8 +8,8 @@ import sonchain.blockchain.util.ByteUtil;
 
 public class DataSourceArray<V> extends AbstractList<V> {
     private int m_size = -1;
-    private static final byte[] SIZE_KEY = Hex.decode("FFFFFFFFFFFFFFFF");
-    private ObjectDataSource<V> m_src;
+    private static final String SIZE_KEY = "FFFFFFFFFFFFFFFF";
+    private ObjectDataSource<V> m_src = null;
 
     public DataSourceArray(ObjectDataSource<V> src) {
         this.m_src = src;
@@ -26,9 +26,10 @@ public class DataSourceArray<V> extends AbstractList<V> {
 
     @Override
     public synchronized V get(int idx) {
-        if (idx < 0 || idx >= size())
+        if (idx < 0 || idx >= size()){
         	throw new IndexOutOfBoundsException(idx + " > " + m_size);
-        return m_src.get(ByteUtil.intToBytes(idx));
+        }
+        return m_src.get(String.valueOf(idx));
     }
 
     
@@ -42,20 +43,20 @@ public class DataSourceArray<V> extends AbstractList<V> {
         if (idx >= size()) {
             setSize(idx + 1);
         }
-        m_src.put(ByteUtil.intToBytes(idx), value);
+        m_src.put(String.valueOf(idx), value);
         return value;
     }
 
     private synchronized void setSize(int newSize) {
     	m_size = newSize;
-        m_src.getSource().put(SIZE_KEY, ByteUtil.intToBytes(newSize));
+        m_src.getSource().put(SIZE_KEY, String.valueOf(newSize));
     }
     
     @Override
     public synchronized int size() {
         if (m_size < 0) {
-            byte[] sizeBB = m_src.getSource().get(SIZE_KEY);
-            m_size = sizeBB == null ? 0 : ByteUtil.byteArrayToInt(sizeBB);
+            String sizeBB = m_src.getSource().get(SIZE_KEY);
+            m_size = sizeBB == null ? 0 : Integer.valueOf(sizeBB);
         }
         return m_size;
     }

@@ -68,10 +68,11 @@ public class ReceiptsDownloader {
                 BlockHeader header = m_headerStore.get((int) i);
 
                 // Skipping download for blocks with no transactions
-                if (FastByteComparisons.equal(header.getReceiptsRoot(), HashUtil.EMPTY_TRIE_HASH)) {
-                    finalizeBlock(header.getNumber());
-                    continue;
-                }
+            	//TODO
+//                if (FastByteComparisons.equal(header.getReceiptsRoot(), HashUtil.EMPTY_TRIE_HASH)) {
+//                    finalizeBlock(header.getNumber());
+//                    continue;
+//                }
 
                 ret.add(header.getHash());
                 maxSize--;
@@ -82,16 +83,16 @@ public class ReceiptsDownloader {
 
     private void processDownloaded(byte[] blockHash, List<TransactionReceipt> receipts) {
         Block block = m_blockStore.getBlockByHash(blockHash);
-        if (block.getNumber() >= m_fromBlock
+        if (block.getBlockNumber() >= m_fromBlock
         		&& validate(block, receipts)
-        		&& !m_completedBlocks.contains(block.getNumber())) {
+        		&& !m_completedBlocks.contains(block.getBlockNumber())) {
             for (int i = 0; i < receipts.size(); i++) {
                 TransactionReceipt receipt = receipts.get(i);
                 TransactionInfo txInfo = new TransactionInfo(receipt, block.getHash(), i);
                 txInfo.setTransaction(block.getTransactionsList().get(i));
                 m_txStore.put(txInfo);
             }
-            finalizeBlock(block.getNumber());
+            finalizeBlock(block.getBlockNumber());
         }
     }
 
@@ -114,7 +115,9 @@ public class ReceiptsDownloader {
 
     private boolean validate(Block block, List<TransactionReceipt> receipts) {
         byte[] receiptsRoot = DataCenter.getSonChainImpl().getBlockChain().calcReceiptsTrie(receipts);
-        return FastByteComparisons.equal(receiptsRoot, block.getReceiptsRoot());
+        return false;
+        //TODO
+        //return FastByteComparisons.equal(receiptsRoot, block.getReceiptsRoot());
     }
 
     private void retrieveLoop() {

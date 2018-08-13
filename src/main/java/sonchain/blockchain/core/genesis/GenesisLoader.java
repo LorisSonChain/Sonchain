@@ -9,8 +9,10 @@ import com.google.common.io.ByteStreams;
 import sonchain.blockchain.accounts.AccountState;
 import sonchain.blockchain.config.BlockChainConfig;
 import sonchain.blockchain.core.BlockHeader;
+import sonchain.blockchain.core.BlockTimestamp;
 import sonchain.blockchain.core.Genesis;
 import sonchain.blockchain.core.PremineAccount;
+import sonchain.blockchain.core.TimePoint;
 import sonchain.blockchain.crypto.HashUtil;
 import sonchain.blockchain.db.ByteArrayWrapper;
 import sonchain.blockchain.service.DataCenter;
@@ -39,16 +41,16 @@ public class GenesisLoader {
 
 	private static Genesis createBlockForJson(GenesisJson genesisJson) {
 		m_logger.debug("createBlockForJson start genesisJson:" + genesisJson.toString());
-		byte[] minedBy = hexStringToBytesValidate(genesisJson.getMinedBy(), 20, false);
-        byte[] mixHash = hexStringToBytesValidate(genesisJson.getMixHash(), 32, false);
+		String producer = genesisJson.getMinedBy();
+        String mixHash = genesisJson.getMixHash();
 
-		byte[] timestampBytes = hexStringToBytesValidate(genesisJson.getTimestamp(), 8, true);
-		long timestamp = ByteUtil.byteArrayToLong(timestampBytes);
+		//byte[] timestampBytes = hexStringToBytesValidate(genesisJson.getTimestamp(), 8, true);
+		BlockTimestamp timestamp = new BlockTimestamp(TimePoint.from_iso_string(genesisJson.getTimestamp()));
 
-		byte[] parentHash = hexStringToBytesValidate(genesisJson.getParentHash(), 32, false);
-		byte[] extraData = hexStringToBytesValidate(genesisJson.getExtraData(), 32, true);
+		String parentHash = genesisJson.getParentHash();
+		String extraData = genesisJson.getExtraData();
 
-		Genesis genesis = new Genesis(parentHash, minedBy, 0, timestamp, extraData, mixHash);
+		Genesis genesis = new Genesis(parentHash, producer, 0, timestamp, extraData, mixHash);
 		m_logger.debug("createBlockForJson end genesis:" + genesis.toString());
 		return genesis;
 	}
@@ -174,7 +176,7 @@ public class GenesisLoader {
 			Genesis genesis = createBlockForJson(genesisJson);
 			genesis.setPremine(generatePreMine(DataCenter.m_config, genesisJson.getAlloc()));
 			byte[] rootHash = generateRootHash(genesis.getPremine());
-			genesis.setStateRoot(rootHash);
+			genesis.setStateRoot(Hex.toHexString(rootHash));
 			m_logger.debug("parseGenesis end. genesis:" + genesis.toString());
 			return genesis;
 		} catch (Exception e) {

@@ -9,6 +9,8 @@ import com.googlecode.concurentlocks.ReadWriteUpdateLock;
 import com.googlecode.concurentlocks.ReentrantReadWriteUpdateLock;
 
 import sonchain.blockchain.util.CLock;
+import sonchain.blockchain.datasource.base.CachedSource;
+import sonchain.blockchain.datasource.base.Source;
 import sonchain.blockchain.util.ByteArrayMap;
 
 public class AccountStateCache {

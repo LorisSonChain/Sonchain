@@ -12,7 +12,7 @@ import sonchain.blockchain.core.Genesis;
 import sonchain.blockchain.core.genesis.GenesisHashValidator;
 import sonchain.blockchain.core.genesis.GenesisJson;
 import sonchain.blockchain.core.genesis.GenesisLoader;
-import sonchain.blockchain.datasource.AbstractChainedSource;
+import sonchain.blockchain.datasource.base.AbstractSource;
 import sonchain.blockchain.service.DataCenter;
 import sonchain.blockchain.util.ByteUtil;
 import sonchain.blockchain.validator.BlockCustomHashRule;
@@ -60,6 +60,14 @@ public class BlockChainConfig implements BaseChainConfig{
 	public String m_startExecutorDate = "";
 	public String m_localNodePrivateKey = "";
 	public int m_maxTransactionsPerBlock = 0;
+	public String m_systemAccountName = "";
+	
+	//The number of sequential blocks produced by a single producer
+	public int m_producerRepetitions = 0;
+	public int m_maxProducers = 0;
+	public int m_maximumTrackedDposConfirmations = 1024;
+	public int m_blockIntervalMs = 500;
+	public long m_blockTimeStampEpoch = 1514764800000L; //epoch is year 2018
 
     private long[] m_blockNumbers = new long[64];
     private BlockChainConfigInterface[] m_configs = new BlockChainConfigInterface[64];
@@ -139,12 +147,8 @@ public class BlockChainConfig implements BaseChainConfig{
 		return m_cryptoHashAlg512;
 	}	
 
-	public byte[] getNodeAddress() {
-		String sc = DataCenter.m_config.m_nodeWalletAddress;
-		byte[] c = ByteUtil.hexStringToBytes(sc);
-		if (c.length != 20)
-			throw new RuntimeException("node.address has invalid value: '" + sc + "'");
-		return c;
+	public String getNodeAddress() {
+		return DataCenter.m_config.m_nodeWalletAddress;
 	}
 
 	/**

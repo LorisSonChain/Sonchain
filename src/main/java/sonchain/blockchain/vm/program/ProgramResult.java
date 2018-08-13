@@ -1,6 +1,6 @@
 package sonchain.blockchain.vm.program;
 
-import sonchain.blockchain.core.InternalTransaction;
+import sonchain.blockchain.core.Transaction;
 import sonchain.blockchain.util.ByteArraySet;
 import sonchain.blockchain.util.ByteUtil;
 import sonchain.blockchain.vm.DataWord;
@@ -19,7 +19,7 @@ public class ProgramResult {
 
 	private Set<DataWord> m_deleteAccounts = null;
 	private ByteArraySet m_touchedAccounts = new ByteArraySet();
-	private List<InternalTransaction> m_internalTransactions = null;
+	private List<Transaction> m_internalTransactions = null;
 	private List<LogInfo> m_logInfoList = null;
 	private long futureRefund = 0;	
 
@@ -100,34 +100,35 @@ public class ProgramResult {
 //				new CallCreate(data, destination, gasLimit, value));
 //	}
 
-	public List<InternalTransaction> getInternalTransactions() {
-		if (m_internalTransactions == null) {
-			m_internalTransactions = new ArrayList<>();
-		}
-		return m_internalTransactions;
-	}
-
-	public InternalTransaction addInternalTransaction(byte[] parentHash,
-			int deep, byte[] nonce, DataWord gasPrice, DataWord gasLimit,
-			byte[] senderAddress, byte[] receiveAddress, byte[] value,
-			byte[] data, String note) {
-		InternalTransaction transaction = new InternalTransaction(parentHash,
-				deep, CollectionUtils.size(m_internalTransactions), nonce,
-				senderAddress, receiveAddress, value, data, note);
-		getInternalTransactions().add(transaction);
-		return transaction;
-	}
-
-	public void addInternalTransactions(
-			List<InternalTransaction> internalTransactions) {
-		getInternalTransactions().addAll(internalTransactions);
-	}
-
-	public void rejectInternalTransactions() {
-		for (InternalTransaction internalTx : getInternalTransactions()) {
-			internalTx.reject();
-		}
-	}
+    //TODO
+//	public List<InternalTransaction> getInternalTransactions() {
+//		if (m_internalTransactions == null) {
+//			m_internalTransactions = new ArrayList<>();
+//		}
+//		return m_internalTransactions;
+//	}
+//
+//	public InternalTransaction addInternalTransaction(byte[] parentHash,
+//			int deep, byte[] nonce, DataWord gasPrice, DataWord gasLimit,
+//			byte[] senderAddress, byte[] receiveAddress, byte[] value,
+//			byte[] data, String note) {
+//		InternalTransaction transaction = new InternalTransaction(parentHash,
+//				deep, CollectionUtils.size(m_internalTransactions), nonce,
+//				senderAddress, receiveAddress, value, data, note);
+//		getInternalTransactions().add(transaction);
+//		return transaction;
+//	}
+//
+//	public void addInternalTransactions(
+//			List<InternalTransaction> internalTransactions) {
+//		getInternalTransactions().addAll(internalTransactions);
+//	}
+//
+//	public void rejectInternalTransactions() {
+//		for (InternalTransaction internalTx : getInternalTransactions()) {
+//			internalTx.reject();
+//		}
+//	}
 
 	public long getFutureRefund() {
 		return futureRefund;
@@ -138,7 +139,8 @@ public class ProgramResult {
 	}
 
 	public void merge(ProgramResult another) {
-		addInternalTransactions(another.getInternalTransactions());
+        //TODO
+		//addInternalTransactions(another.getInternalTransactions());
 		if (another.getException() == null) {
 			addDeleteAccounts(another.getDeleteAccounts());
 			addLogInfos(another.getLogInfoList());

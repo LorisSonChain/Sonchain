@@ -1,6 +1,6 @@
 package sonchain.blockchain.sync;
 
-import sonchain.blockchain.consensus.SonChainPeerNode;
+import sonchain.blockchain.consensus.SonChainProducerNode;
 import sonchain.blockchain.core.Block;
 import sonchain.blockchain.core.BlockHeader;
 import sonchain.blockchain.core.BlockHeaderWrapper;
@@ -29,6 +29,7 @@ public abstract class BlockDownloader {
 	private int blockQueueLimit = 2000;
 	private int headerQueueLimit = 10000;
 
+	// Max number of Blocks / Headers in one request
 	private static int MAX_IN_REQUEST = 192;
 	private static int REQUESTS = 32;
 
@@ -41,6 +42,10 @@ public abstract class BlockDownloader {
 	private boolean m_headersDownload = true;
 	protected boolean m_headersDownloadComplete = false;
 	private BlockHeaderValidator m_headerValidator = null;
+	// private SyncPool m_pool = null;
+	// CountDownLatch是通过一个计数器来实现的，计数器的初始值为线程的数量。
+	// 每当一个线程完成了自己的任务后，计数器的值就会减1。当计数器值到达0时，它表示所有的线程已经完成了任务，然后在闭锁上等待的线程就可以恢复执行任务。
+	// 构造器中的计数值（count）实际上就是闭锁需要等待的线程数量。这个值只能被设置一次，而且CountDownLatch没有提供任何机制去重新设置这个计数值。
 	private CountDownLatch m_receivedBlocksLatch = new CountDownLatch(0);
 	private CountDownLatch m_receivedHeadersLatch = new CountDownLatch(0);
 	private CountDownLatch m_stopLatch = new CountDownLatch(1);
@@ -58,8 +63,14 @@ public abstract class BlockDownloader {
 	protected abstract void pushHeaders(List<BlockHeaderWrapper> headers);
 
 	protected abstract int getBlockQueueFreeSize();
-	
-	private void addBlocks(List<Block> blocks, SonChainPeerNode hostInfo) {
+
+	/**
+	 * Adds a list of blocks to the queue
+	 *
+	 * @param blocks block list received from remote peer and be added to the queue
+	 * @param hostInfo nodeId of remote peer which these blocks are received from
+	 */
+	private void addBlocks(List<Block> blocks, SonChainProducerNode hostInfo) {
 		m_logger.info("addBlocks end.");
 		if (blocks.isEmpty()) {
 			return;
@@ -80,7 +91,7 @@ public abstract class BlockDownloader {
 		m_receivedBlocksLatch.countDown();
 		 if (m_logger.isDebugEnabled()) {
 			 m_logger.debug(String.format("Blocks waiting to be proceed: lastBlock.number: [{%d}]",
-					 blocks.get(blocks.size() - 1).getNumber()));
+					 blocks.get(blocks.size() - 1).getBlockNumber()));
 		 }
 		m_logger.info("addBlocks end.");
 	}
@@ -306,6 +317,15 @@ public abstract class BlockDownloader {
 		return false;
 	}
 
+	/**
+	 * Runs checks against block's header. <br>
+	 * All these checks make sense before block is added to queue in front of
+	 * checks running by {@link BlockchainImpl#isValid(BlockHeader)}
+	 *
+	 * @param header
+	 *            block header
+	 * @return true if block is valid, false otherwise
+	 */
 	protected boolean isValid(BlockHeader header) {
 		return m_headerValidator.validateAndLog(header);
 	}
@@ -350,8 +370,20 @@ public abstract class BlockDownloader {
 			m_logger.info("waitForStop end.");
 		}
 	}
-	
-	private boolean validateAndAddHeaders(List<BlockHeader> headers, SonChainPeerNode hostInfo) {
+
+	/**
+	 * Adds list of headers received from remote host <br>
+	 * Runs header validation before addition <br>
+	 * It also won't add headers of those blocks which are already presented in
+	 * the queue
+	 *
+	 * @param headers list of headers got from remote host
+	 * @param SonChainHostInfo remote host info
+	 *
+	 * @return true if blocks passed validation and were added to the queue,
+	 *         otherwise it returns false
+	 */
+	private boolean validateAndAddHeaders(List<BlockHeader> headers, SonChainProducerNode hostInfo) {
 		if (headers.isEmpty()) {
 			return true;
 		}

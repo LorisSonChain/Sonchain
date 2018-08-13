@@ -4,7 +4,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 
-import sonchain.blockchain.consensus.SonChainPeerNode;
+import sonchain.blockchain.consensus.SonChainProducerNode;
 
 public class NodeFilter {
 	private List<Entry> m_entries = new ArrayList<>();
@@ -13,7 +13,7 @@ public class NodeFilter {
     	m_entries.add(new Entry(nodeId, hostIpPattern));
     }
 
-    public boolean accept(SonChainPeerNode node) {
+    public boolean accept(SonChainProducerNode node) {
         for (Entry entry : m_entries) {
             if (entry.accept(node)) return true;
         }
@@ -47,7 +47,7 @@ public class NodeFilter {
             return m_hostIpPattern != null && ip.startsWith(m_hostIpPattern);
         }
 
-        public boolean accept(SonChainPeerNode node) {
+        public boolean accept(SonChainProducerNode node) {
             try {
                 return (m_nodeId == null || Arrays.equals(node.getId(), m_nodeId))
                         && (m_hostIpPattern == null || accept(InetAddress.getByName(node.getHost())));

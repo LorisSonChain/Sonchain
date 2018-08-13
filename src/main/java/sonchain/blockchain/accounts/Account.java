@@ -58,7 +58,7 @@ public class Account {
 		synchronized (m_pendingTransactions) {
 			if (!m_pendingTransactions.isEmpty()) {
 				for (Transaction tx : m_pendingTransactions) {
-					if (Arrays.equals(getAddress(), tx.getSender())) {
+					if (Arrays.equals(getAddress(), tx.getSenderAddress())) {
 						balance = balance.subtract(new BigInteger(1, tx.getValue()));
 					}
 					if (Arrays.equals(getAddress(), tx.getReceiveAddress())) {

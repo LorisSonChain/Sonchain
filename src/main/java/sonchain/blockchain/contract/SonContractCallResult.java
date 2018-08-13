@@ -14,9 +14,12 @@ public abstract class SonContractCallResult extends TransactionResult{
     }
 
     public Object[] getReturnValues() {
-        if (!isIncluded()) return null;
-        byte[] executionResult = getReceipt().getExecutionResult();
-        return getFunction().decodeResult(executionResult);
+    	return null;
+
+		//TODO
+        //if (!isIncluded()) return null;
+        //byte[] executionResult = getReceipt().getExecutionResult();
+        //return getFunction().decodeResult(executionResult);
     }
 
     public abstract CallTransaction.Function getFunction();

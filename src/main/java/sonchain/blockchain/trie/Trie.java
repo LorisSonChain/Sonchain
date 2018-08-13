@@ -1,6 +1,6 @@
 package sonchain.blockchain.trie;
 
-import sonchain.blockchain.datasource.Source;
+import sonchain.blockchain.datasource.base.Source;
 
 /**
  * Trie

@@ -25,6 +25,7 @@ import sonchain.blockchain.service.DataCenter;
 import sonchain.blockchain.sync.FastSyncManager;
 import sonchain.blockchain.sync.SyncManager;
 import sonchain.blockchain.sync.SyncPool;
+import sonchain.blockchain.util.Numeric;
 import sonchain.blockchain.util.Utils;
 import sonchain.blockchain.listener.*;
 
@@ -134,13 +135,13 @@ public class WorldManager {
 			}
 			Block bestBlock = m_blockStore.getBestBlock();
 			if (DataCenter.m_config.m_databaseReset && DataCenter.m_config.m_databaseResetBlock > 0) {
-				if (DataCenter.m_config.m_databaseResetBlock > bestBlock.getNumber()) {
+				if (DataCenter.m_config.m_databaseResetBlock > bestBlock.getBlockNumber()) {
 					m_logger.error(String.format("*** Can't reset to block [{%d}] since block store is at block [{%s}].", 
 							DataCenter.m_config.m_databaseResetBlock, bestBlock.toString()));
 					throw new RuntimeException("Reset block ahead of block store.");				}
 				bestBlock = m_blockStore.getChainBlockByNumber(DataCenter.m_config.m_databaseResetBlock);
 
-				Repository snapshot = m_repository.getSnapshotTo(bestBlock.getStateRoot());
+				Repository snapshot = m_repository.getSnapshotTo(Numeric.hexStringToByteArray(bestBlock.getStateRoot()));
 				if (false) { 
 					// TODO: some way to tell if the snapshot hasn't
 								// been pruned
@@ -172,9 +173,9 @@ public class WorldManager {
 			// if state is not generated from empty premine list
 			// todo this is just a workaround, move EMPTY_TRIE_HASH logic to
 			// Trie implementation
-			if (!Arrays.equals(m_blockchain.getBestBlock().getStateRoot(), HashUtil.EMPTY_TRIE_HASH)) {
-				m_repository.syncToRoot(m_blockchain.getBestBlock().getStateRoot());
-			}
+			//if (!Arrays.equals(m_blockchain.getBestBlock().getStateRoot(), HashUtil.EMPTY_TRIE_HASH)) {
+			//	m_repository.syncToRoot(m_blockchain.getBestBlock().getStateRoot());
+			//}
 		}
 	}
 

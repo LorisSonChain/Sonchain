@@ -18,7 +18,7 @@ import sonchain.blockchain.vm.LogInfo;
 public class TransactionExecutionSummary {
     private List<DataWord> m_deletedAccounts = Collections.emptyList();
     private boolean m_failed = false;
-    private List<InternalTransaction> m_internalTransactions = Collections.emptyList();
+    private List<Transaction> m_internalTransactions = Collections.emptyList();
     private List<LogInfo> m_logs = null;
     private boolean m_parsed = false;
     private byte[] m_result = null;
@@ -57,10 +57,11 @@ public class TransactionExecutionSummary {
         return result;
     }
 
-    private static List<InternalTransaction> decodeInternalTransactions(RLPList internalTransactions) {
-        List<InternalTransaction> result = new ArrayList<>();
+    private static List<Transaction> decodeInternalTransactions(RLPList internalTransactions) {
+        List<Transaction> result = new ArrayList<>();
         for (RLPElement internalTransaction : internalTransactions) {
-            result.add(new InternalTransaction(internalTransaction.getRLPData()));
+        	//TODO
+            //result.add(new Transaction(internalTransaction.getRLPData()));
         }
         return result;
     }
@@ -91,16 +92,17 @@ public class TransactionExecutionSummary {
         }
         return RLP.encodeList(result);
     }
-    
-    private static byte[] encodeInternalTransactions(List<InternalTransaction> internalTransactions) {
-        byte[][] result = new byte[internalTransactions.size()][];
-        for (int i = 0; i < internalTransactions.size(); i++) {
-            InternalTransaction transaction = internalTransactions.get(i);
-            result[i] = transaction.getEncoded();
-        }
 
-        return RLP.encodeList(result);
-    }
+	//TODO
+//    private static byte[] encodeInternalTransactions(List<InternalTransaction> internalTransactions) {
+//        byte[][] result = new byte[internalTransactions.size()][];
+//        for (int i = 0; i < internalTransactions.size(); i++) {
+//            InternalTransaction transaction = internalTransactions.get(i);
+//            result[i] = transaction.getEncoded();
+//        }
+//
+//        return RLP.encodeList(result);
+//    }
     
     private static byte[] encodeLogs(List<LogInfo> logs) {
         byte[][] result = new byte[logs.size()][];
@@ -127,15 +129,16 @@ public class TransactionExecutionSummary {
         if (m_rlpEncoded != null){
         	return m_rlpEncoded;
         }
-        m_rlpEncoded = RLP.encodeList(
-        		m_transaction.getEncoded(),
-                RLP.encodeBigInteger(m_value),
-                encodeDeletedAccounts(m_deletedAccounts),
-                encodeInternalTransactions(m_internalTransactions),
-                RLP.encodeElement(m_result),
-                encodeLogs(m_logs),
-                RLP.encodeInt(m_failed ? 1 : 0)
-        );
+    	//TODO
+//        m_rlpEncoded = RLP.encodeList(
+//        		m_transaction.getEncoded(),
+//                RLP.encodeBigInteger(m_value),
+//                encodeDeletedAccounts(m_deletedAccounts),
+//                encodeInternalTransactions(m_internalTransactions),
+//                RLP.encodeElement(m_result),
+//                encodeLogs(m_logs),
+//                RLP.encodeInt(m_failed ? 1 : 0)
+//        );
         return m_rlpEncoded;
     }
     
@@ -163,13 +166,14 @@ public class TransactionExecutionSummary {
         }
         return m_deletedAccounts;
     }
-    
-    public List<InternalTransaction> getInternalTransactions() {
-        if (!m_parsed) {
-        	rlpParse();
-        }
-        return m_internalTransactions;
-    }
+
+	//TODO
+//    public List<InternalTransaction> getInternalTransactions() {
+//        if (!m_parsed) {
+//        	rlpParse();
+//        }
+//        return m_internalTransactions;
+//    }
 
     @Deprecated
     /* Use getTouchedStorage().getAll() instead */
@@ -211,7 +215,8 @@ public class TransactionExecutionSummary {
         }
         RLPList decodedTxList = RLP.decode2(m_rlpEncoded);
         RLPList summary = (RLPList) decodedTxList.get(0);
-        m_transaction = new Transaction(summary.get(0).getRLPData());
+    	//TODO
+        //m_transaction = new Transaction(summary.get(0).getRLPData());
         m_value = decodeBigInteger(summary.get(1).getRLPData());
         m_deletedAccounts = decodeDeletedAccounts((RLPList) summary.get(2));
         m_internalTransactions = decodeInternalTransactions((RLPList) summary.get(3));
@@ -229,10 +234,11 @@ public class TransactionExecutionSummary {
         	m_summary = new TransactionExecutionSummary(transaction);
         }
 
-        public Builder internalTransactions(List<InternalTransaction> internalTransactions) {
-        	m_summary.m_internalTransactions = Collections.unmodifiableList(internalTransactions);
-            return this;
-        }
+    	//TODO
+//        public Builder internalTransactions(List<InternalTransaction> internalTransactions) {
+//        	m_summary.m_internalTransactions = Collections.unmodifiableList(internalTransactions);
+//            return this;
+//        }
 
         public Builder deletedAccounts(Set<DataWord> deletedAccounts) {
         	m_summary.m_deletedAccounts = new ArrayList<>();
@@ -265,9 +271,10 @@ public class TransactionExecutionSummary {
         public TransactionExecutionSummary build() {
         	m_summary.m_parsed = true;
             if (m_summary.m_failed) {
-                for (InternalTransaction transaction : m_summary.m_internalTransactions) {
-                    transaction.reject();
-                }
+            	//TODO
+//                for (InternalTransaction transaction : m_summary.m_internalTransactions) {
+//                    transaction.reject();
+//                }
             }
             return m_summary;
         }

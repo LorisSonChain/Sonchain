@@ -4,6 +4,7 @@ import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Map;
 
+import sonchain.blockchain.core.BlockTimestamp;
 import sonchain.blockchain.core.Repository;
 import sonchain.blockchain.db.BlockStore;
 import sonchain.blockchain.vm.DataWord;
@@ -22,7 +23,9 @@ public class ProgramInvokeImpl implements ProgramInvoke {
     /**
      * BLOCK  env **
      */
-    private final DataWord m_prevHash, m_coinbase, m_timestamp, m_number;
+    private final DataWord m_prevHash, m_coinbase, m_number;
+    
+    private final BlockTimestamp m_timestamp;
 
     private Map<DataWord, DataWord> m_storage;
 
@@ -34,7 +37,7 @@ public class ProgramInvokeImpl implements ProgramInvoke {
 
     public ProgramInvokeImpl(DataWord address, DataWord origin, DataWord caller, DataWord balance,
                              DataWord callValue, byte[] msgData, DataWord lastHash, DataWord coinbase, 
-                             DataWord timestamp, DataWord number, Repository repository, int callDeep, 
+                             BlockTimestamp timestamp, DataWord number, Repository repository, int callDeep, 
                              BlockStore blockStore, boolean byTestingSuite) {
 
         // Transaction env
@@ -60,7 +63,7 @@ public class ProgramInvokeImpl implements ProgramInvoke {
 
     public ProgramInvokeImpl(byte[] address, byte[] origin, byte[] caller, byte[] balance,
                              byte[] callValue, byte[] msgData,
-                             byte[] lastHash, byte[] coinbase, long timestamp, long number,
+                             String lastHash, String coinbase, BlockTimestamp timestamp, long number,
                              Repository repository, BlockStore blockStore, boolean byTestingSuite) {
         this(address, origin, caller, balance, callValue, msgData, lastHash, coinbase,
                 timestamp, number, repository, blockStore);
@@ -70,7 +73,7 @@ public class ProgramInvokeImpl implements ProgramInvoke {
 
     public ProgramInvokeImpl(byte[] address, byte[] origin, byte[] caller, byte[] balance,
                              byte[] callValue, byte[] msgData,
-                             byte[] lastHash, byte[] coinbase, long timestamp, long number,
+                             String lastHash, String coinbase, BlockTimestamp timestamp, long number,
                              Repository repository, BlockStore blockStore) {
 
         // Transaction env
@@ -84,7 +87,7 @@ public class ProgramInvokeImpl implements ProgramInvoke {
         // last Block env
     	m_prevHash = new DataWord(lastHash);
     	m_coinbase = new DataWord(coinbase);
-    	m_timestamp = new DataWord(timestamp);
+    	m_timestamp = timestamp;
     	m_number = new DataWord(number);
         
     	m_repository = repository;
@@ -186,7 +189,7 @@ public class ProgramInvokeImpl implements ProgramInvoke {
 
     /*     TIMESTAMP op    */
     public DataWord getTimestamp() {
-        return m_timestamp;
+        return null;
     }
 
     /*     NUMBER op    */

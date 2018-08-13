@@ -2,31 +2,19 @@ package sonchain.blockchain.db;
 
 import org.apache.log4j.Logger;
 
-import com.google.common.util.concurrent.ListenableFuture;
-
-import sonchain.blockchain.datasource.AbstractCachedSource;
-import sonchain.blockchain.datasource.AbstractChainedSource;
-import sonchain.blockchain.datasource.AsyncWriteCache;
-import sonchain.blockchain.datasource.BloomedSource;
-import sonchain.blockchain.datasource.CountingBytesSource;
-import sonchain.blockchain.datasource.HashedKeySource;
-import sonchain.blockchain.datasource.MemSizeEstimator;
-import sonchain.blockchain.datasource.NoDeleteSource;
-import sonchain.blockchain.datasource.ReadCache;
-import sonchain.blockchain.datasource.Source;
-import sonchain.blockchain.datasource.SourceChainBox;
 import sonchain.blockchain.datasource.WriteCache;
-import sonchain.blockchain.service.DataCenter;
+import sonchain.blockchain.datasource.base.AbstractCachedSource;
+import sonchain.blockchain.datasource.base.AbstractSource;
+import sonchain.blockchain.datasource.base.Source;
 
-public class StateSource extends AbstractChainedSource<byte[], byte[], byte[], byte[]> 
-			implements HashedKeySource<byte[], byte[]> {
+public class StateSource extends AbstractSource<byte[], byte[], byte[], byte[]> {
 
 	public static final Logger m_logger = Logger.getLogger(StateSource.class);
 	// for debug purposes
 	public static StateSource INST = null;
 
     //private BloomedSource m_bloomedSource = null;
-    private CountingBytesSource m_countingSource = null;
+    //private CountingBytesSource m_countingSource = null;
     //private NoDeleteSource<byte[], byte[]> m_noDeleteSource = null;
     //private ReadCache<byte[], byte[]> m_readCache = null;
     private WriteCache<byte[], byte[]> m_writeCache = null;

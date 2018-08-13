@@ -1,7 +1,7 @@
 package sonchain.blockchain.trie;
 
 import sonchain.blockchain.crypto.HashUtil;
-import sonchain.blockchain.datasource.Source;
+import sonchain.blockchain.datasource.base.Source;
 import sonchain.blockchain.util.ByteUtil;
 
 public class SecureTrie extends TrieImpl {
@@ -10,11 +10,11 @@ public class SecureTrie extends TrieImpl {
         super(root);
     }
 
-    public SecureTrie(Source<byte[], byte[]> cache) {
+    public SecureTrie(Source<String, String> cache) {
         super(cache, null);
     }
 
-    public SecureTrie(Source<byte[], byte[]> cache, byte[] root) {
+    public SecureTrie(Source<String, String> cache, byte[] root) {
         super(cache, root);
     }
 

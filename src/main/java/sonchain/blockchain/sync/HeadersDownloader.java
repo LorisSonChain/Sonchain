@@ -13,6 +13,7 @@ import sonchain.blockchain.datasource.DataSourceArray;
 import sonchain.blockchain.db.DbFlushManager;
 import sonchain.blockchain.db.IndexedBlockStore;
 import sonchain.blockchain.service.DataCenter;
+import sonchain.blockchain.util.Numeric;
 import sonchain.blockchain.validator.BlockHeaderValidator;
 
 public class HeadersDownloader extends BlockDownloader {
@@ -51,7 +52,7 @@ public class HeadersDownloader extends BlockDownloader {
         	m_genesisHash = headers.get(headers.size() - 1).getHash();
         }
         if (headers.get(headers.size() - 1).getNumber() == 1) {
-        	m_genesisHash = headers.get(headers.size() - 1).getHeader().getParentHash();
+        	m_genesisHash = Numeric.hexStringToByteArray(headers.get(headers.size() - 1).getHeader().getParentHash());
         }
         m_logger.info(headers.size() + " headers loaded: " + headers.get(0).getNumber() + " - " + headers.get(headers.size() - 1).getNumber());
         for (BlockHeaderWrapper header : headers) {

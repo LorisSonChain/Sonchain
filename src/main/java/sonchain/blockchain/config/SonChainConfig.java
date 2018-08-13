@@ -25,7 +25,8 @@ public class SonChainConfig implements BlockChainConfigInterface, BaseChainConfi
 
     @Override
     public boolean acceptTransactionSignature(Transaction tx) {
-    	return tx.getSignature().validateComponents();
+    	//TODO
+    	return true;
     }
 
     @Override

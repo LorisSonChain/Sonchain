@@ -8,12 +8,17 @@ import org.apache.log4j.Logger;
 import org.bouncycastle.util.encoders.Hex;
 
 import sonchain.blockchain.core.Block;
+import sonchain.blockchain.core.BlockTimestamp;
 import sonchain.blockchain.core.Transaction;
 import sonchain.blockchain.crypto.ECKey;
 import sonchain.blockchain.service.DataCenter;
 import sonchain.blockchain.util.ByteArrayMap;
 import sonchain.blockchain.data.BaseMessage;
 
+/**
+ * @author GAIA
+ *
+ */
 public class ConsensusContext {
 
 	public final static int Initial = (0x00);
@@ -27,21 +32,21 @@ public class ConsensusContext {
 
 	public static final Logger m_logger = Logger.getLogger(ConsensusContext.class);
 	public final static int Version = 0;
-	public int m_state = Initial;
-	public byte[] m_preHash = null;
-	public int m_blockNumber = 0;
-	public int m_viewNumber = 0;
-	public SonChainPeerNode[] m_validators = null;
-	public int m_myIndex = -1;
-	public int m_primaryIndex = 0;
-	public long m_timestamp = 0;
+	public int m_state = Initial;		
+	public byte[] m_preHash = null;     
+	public int m_blockNumber = 0;		
+	public int m_viewNumber = 0;		
+	public SonChainProducerNode[] m_validators = null;
+	public int m_myIndex = -1;			
+	public int m_primaryIndex = 0;		
+	public BlockTimestamp m_timestamp = null;
 	public BigInteger m_nonce = BigInteger.ZERO;
-	public byte[] m_nextConsensus = null;
+	public String m_nextConsensus = null;	
 	public List<Transaction> m_lstTransaction = new ArrayList<Transaction>();
 	public ByteArrayMap<Transaction> m_transactions = new ByteArrayMap<Transaction>();
-	public byte[][] m_signatures = null;
-	public int[] m_expectedView = null;
-	public ECKey m_keyPair = null;
+	public byte[][] m_signatures = null;   
+	public int[] m_expectedView = null;	   
+	public ECKey m_keyPair = null;		  
 	public Block m_header = null;
 	
 	public int getMinAllowCount() {
@@ -50,6 +55,9 @@ public class ConsensusContext {
 		return minAllowCount;
 	}
 	
+	/**
+	 * @param view_number 
+	 */
 	public void changeView(int view_number){
 		int p = (m_blockNumber - view_number) % m_validators.length;
 		m_state &= SignatureSent;
@@ -64,20 +72,26 @@ public class ConsensusContext {
 		m_header = null;
 	}
 	
+	/**
+	 * @return
+	 */
 	public ConsensusPayload makeChangeView()
 	{
 		ChangeViewMessage changeView = new ChangeViewMessage(m_expectedView[m_myIndex], m_viewNumber);
 		return makePayload(changeView);
 	}
 	
+	/**
+	 * @return
+	 */
 	public Block makeHeader(){
-		if(m_lstTransaction == null){
+		if(m_lstTransaction == null || m_lstTransaction.size() == 0){
 			return null;
 		}
 		if(m_header == null){
-			m_header = 
-					DataCenter.getSonChainImpl().getBlockChain().createNewBlock(
-							DataCenter.getSonChainImpl().getBlockChain().getBlockByHash(m_preHash), m_lstTransaction);
+			//TODO
+			//m_header = DataCenter.getSonChainImpl().getBlockChain().createNewBlock(
+			//				DataCenter.getSonChainImpl().getBlockChain().getBlockByHash(m_preHash), m_lstTransaction);
 					
 //					new Block(m_preHash,
 //	        		null,
@@ -92,6 +106,10 @@ public class ConsensusContext {
 		return m_header;
 	}
 	
+	/**
+	 * @param message
+	 * @return
+	 */
 	private ConsensusPayload makePayload(BaseMessage message){
 		ConsensusPayload payload = new ConsensusPayload();
 		payload.m_messageType = message.getCommand();
@@ -104,6 +122,9 @@ public class ConsensusContext {
 		return payload;
 	}
 	
+	/**
+	 * @return
+	 */
 	public ConsensusPayload makePrepareRequest()
 	{
 		PrepareRequestMessage request = new PrepareRequestMessage(m_nonce, 
@@ -111,26 +132,32 @@ public class ConsensusContext {
 		return makePayload(request);	
 	}
 	
+	/**
+	 * @param signature
+	 * @return
+	 */
 	public ConsensusPayload makePrepareResponse(byte[] signature){
 		PrepareResponseMessage response = new PrepareResponseMessage(signature, m_viewNumber);
 		return makePayload(response);	
 	}
 	
+	/**
+	 */
 	public void reset(){
-		m_state = Initial; 
+		m_state = Initial;  
 		m_preHash = DataCenter.getSonChainImpl().getBlockChain().getBestBlockHash();
-		m_blockNumber = (int)DataCenter.getSonChainImpl().getBlockChain().getBestBlock().getNumber() + 1;
-		m_viewNumber = 0;  //Init viewNumber
+		m_blockNumber = (int)DataCenter.getSonChainImpl().getBlockChain().getBestBlock().getBlockNumber() + 1;
+		m_viewNumber = 0;  
 		m_validators = DataCenter.getSonChainImpl().getBlockChain().getValidators();
 		int validatorLength = m_validators.length;
-		m_myIndex = -1;
-		m_primaryIndex = m_blockNumber % validatorLength; // create block header // p = (h-v)mod n v = 0 
+		m_myIndex = -1; 
+		m_primaryIndex = m_blockNumber % validatorLength; 
 		m_lstTransaction.clear();
         m_signatures = new byte[validatorLength][];
-		m_expectedView = new int[validatorLength];
+		m_expectedView = new int[validatorLength]; 
 		m_keyPair = null;
 		for(int i = 0; i < validatorLength; i++){
-			SonChainPeerNode peerInfo = m_validators[i];
+			SonChainProducerNode peerInfo = m_validators[i];
 			if(peerInfo.getHost().equals(DataCenter.m_config.m_localHost)
 					&& peerInfo.getPort() == DataCenter.m_config.m_localPort){
 				m_myIndex = i;

@@ -43,7 +43,8 @@ public class InvPayload {
 			m_type = InventoryType.fromByte(byt);
 			int size = m_lstTransaction.size();
 			for(int i = 0; i < size; i++){
-				m_lstTransaction.add(new Transaction(Numeric.hexStringToByteArray(reader.ReadString())));
+				//TOOD
+				//m_lstTransaction.add(new Transaction(Numeric.hexStringToByteArray(reader.ReadString())));
 			}
 			m_logger.debug("deserialize end.");
 			

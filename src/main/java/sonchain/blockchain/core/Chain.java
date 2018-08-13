@@ -9,6 +9,7 @@ import java.util.Map;
 import org.apache.log4j.Logger;
 
 import sonchain.blockchain.db.ByteArrayWrapper;
+import sonchain.blockchain.util.Numeric;
 
 public class Chain {
 
@@ -59,6 +60,6 @@ public class Chain {
 
 	public boolean isParentOnTheChain(Block block) {
 		m_logger.debug("isParentOnTheChain start");
-		return (m_index.get(new ByteArrayWrapper(block.getParentHash())) != null);
+		return (m_index.get(new ByteArrayWrapper(Numeric.hexStringToByteArray(block.getParentHash()))) != null);
 	}
 }

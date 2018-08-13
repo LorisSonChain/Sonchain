@@ -35,7 +35,9 @@ public class TransactionsMessage extends BaseMessage{
         m_transactions = new ArrayList<>();
         for (int i = 0; i < paramsList.size(); ++i) {
             RLPList rlpTxData = (RLPList) paramsList.get(i);
-            Transaction tx = new Transaction(rlpTxData.getRLPData());
+            //TODO
+            Transaction tx = new Transaction();
+            //Transaction tx = new Transaction(rlpTxData.getRLPData());
             m_transactions.add(tx);
         }
         m_parsed = true;
@@ -74,11 +76,13 @@ public class TransactionsMessage extends BaseMessage{
         final StringBuilder sb = new StringBuilder();
         if (m_transactions.size() < 4) {
             for (Transaction transaction : m_transactions){
-                sb.append("\n   ").append(transaction.toString(128));
+    	        //TODO
+                //sb.append("\n   ").append(transaction.toString(128));
             }
         } else {
             for (int i = 0; i < 3; i++) {
-                sb.append("\n   ").append(m_transactions.get(i).toString(128));
+    	        //TODO
+                //sb.append("\n   ").append(m_transactions.get(i).toString(128));
             }
             sb.append("\n   ").append("[Skipped ").append(m_transactions.size() - 3).append(" transactions]");
         }

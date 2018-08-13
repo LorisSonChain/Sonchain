@@ -7,7 +7,7 @@ import java.util.concurrent.Future;
 
 import sonchain.blockchain.consensus.ConsensusService;
 import sonchain.blockchain.consensus.NodeManager;
-import sonchain.blockchain.consensus.SonChainPeerNode;
+import sonchain.blockchain.consensus.SonChainProducerNode;
 import sonchain.blockchain.core.Block;
 import sonchain.blockchain.core.BlockChain;
 import sonchain.blockchain.core.Transaction;
@@ -26,7 +26,7 @@ public interface SonChain {
 
     void close();
     
-    void connect(SonChainPeerNode node);
+    void connect(SonChainProducerNode node);
     
     void connect(InetAddress addr, int port, String remoteId);
 

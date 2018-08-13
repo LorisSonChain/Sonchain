@@ -7,6 +7,8 @@ import org.bouncycastle.util.encoders.Hex;
 
 import sonchain.blockchain.base.Binary;
 import sonchain.blockchain.core.Block;
+import sonchain.blockchain.core.BlockTimestamp;
+import sonchain.blockchain.core.TimePoint;
 import sonchain.blockchain.net.SonMessageCodes;
 import sonchain.blockchain.service.DataCenter;
 import sonchain.blockchain.util.ByteUtil;
@@ -24,7 +26,7 @@ public class ConsensusPayload{
 	public byte[] m_preHash = null;
 	public int m_blockNumber = 0;
 	public int m_validatorIndex = 0;
-	public long m_timestamp = 0;
+	public BlockTimestamp m_timestamp;
 	public byte[] m_data = null;
 	public Witness m_script = null;
 	public SonMessageCodes m_messageType = SonMessageCodes.ChangeView;	
@@ -60,7 +62,9 @@ public class ConsensusPayload{
 			}
 			m_blockNumber = reader.ReadInt();
 			m_validatorIndex = reader.ReadInt();
-			m_timestamp = (long)reader.ReadDouble();
+			String timeStamp = reader.ReadString();
+			TimePoint point = TimePoint.from_iso_string(timeStamp);
+			m_timestamp = new BlockTimestamp(point);
 			String dataString = reader.ReadString();
 			if(!dataString.equals(""))
 			{
@@ -99,7 +103,7 @@ public class ConsensusPayload{
 			writer.WriteString(preHashStr);
 			writer.WriteInt(m_blockNumber);
 			writer.WriteInt(m_validatorIndex);
-			writer.WriteDouble(m_timestamp);
+			writer.WriteString(m_timestamp.toTimePoint().toString());
 			String dataStr = "";
 			if(m_data != null)
 			{
@@ -188,9 +192,9 @@ public class ConsensusPayload{
 	public boolean verify() {
 		m_logger.debug("verify start");
 		Block block = DataCenter.getSonChainImpl().getBlockChain().getBestBlock();
-        if (m_blockNumber <= block.getNumber()){
+        if (m_blockNumber <= block.getBlockNumber()){
     		m_logger.debug(String.format("verify failed blockNumber={%d}, BestBlockNumber={%d}"
-    				, m_blockNumber, block.getNumber()));
+    				, m_blockNumber, block.getBlockNumber()));
             return false;
         }
 //        List<byte[]> hashes = getScriptHashesForVerifying();

@@ -1,10 +1,14 @@
 package sonchain.blockchain.datasource;
 
-import java.util.Collection;
+import sonchain.blockchain.datasource.base.AbstractCachedSource;
+import sonchain.blockchain.datasource.base.AbstractSource;
+import sonchain.blockchain.datasource.base.CachedSource;
+import sonchain.blockchain.datasource.base.Source;
 
+import java.util.Collection;
 import org.apache.log4j.Logger;
 
-public class ReadWriteCache<Key, Value> extends SourceChainBox<Key, Value, Key, Value>
+public class ReadWriteCache<Key, Value> extends AbstractSource<Key, Value, Key, Value>
 		implements CachedSource<Key, Value> {
 
 	public static final Logger m_logger = Logger.getLogger(ReadWriteCache.class);
@@ -18,16 +22,10 @@ public class ReadWriteCache<Key, Value> extends SourceChainBox<Key, Value, Key, 
 
 	public ReadWriteCache(Source<Key, Value> src, WriteCache.CacheType cacheType) {
 		super(src);
-		add(m_writeCache = new WriteCache<>(src, cacheType));
-		add(m_readCache = new ReadCache<>(m_writeCache));
+		m_writeCache = new WriteCache<>(src, cacheType);
+		m_readCache = new ReadCache<>(m_writeCache);
 		m_readCache.setFlushSource(true);
 		m_logger.debug("ReadWriteCache init end");
-	}
-
-	@Override
-	public synchronized long estimateCacheSize() {
-		m_logger.debug("estimateCacheSize start");
-		return m_readCache.estimateCacheSize() + m_writeCache.estimateCacheSize();
 	}
 
 	protected synchronized AbstractCachedSource.Entry<Value> getCached(Key key) {
@@ -56,10 +54,49 @@ public class ReadWriteCache<Key, Value> extends SourceChainBox<Key, Value, Key, 
 	public static class BytesKey<V> extends ReadWriteCache<byte[], V> {
 		public BytesKey(Source<byte[], V> src, WriteCache.CacheType cacheType) {
 			super(src);
-			add(m_writeCache = new WriteCache.BytesKey<>(src, cacheType));
-			add(m_readCache = new ReadCache.BytesKey<>(m_writeCache));
+			m_writeCache = new WriteCache.BytesKey<>(src, cacheType);
+			m_readCache = new ReadCache.BytesKey<>(m_writeCache);
 			m_readCache.setFlushSource(true);
 			m_logger.debug("BytesKey  init end");
 		}
+	}
+
+	public static class StringKey<V> extends ReadWriteCache<String, V> {
+		public StringKey(Source<String, V> src, WriteCache.CacheType cacheType) {
+			super(src);
+			m_writeCache = new WriteCache.StringKey(src, cacheType);
+			m_readCache = new ReadCache.StringKey(m_writeCache);
+			m_readCache.setFlushSource(true);
+			m_logger.debug("BytesKey  init end");
+		}
+	}
+
+	@Override
+	public void delete(Key key) {
+		m_logger.debug("delete start." + " key:" + key.toString());
+		m_readCache.delete(key);
+		
+	}
+
+	@Override
+	public Value get(Key key) {
+		m_logger.debug("get start." + " key:" + key.toString());
+		return m_readCache.get(key);
+	}
+
+	@Override
+	public void put(Key key, Value val) {
+		if(val instanceof String){
+			m_logger.debug("put start." + " key:" + key.toString() + " val:" + val.toString());
+		}
+		m_readCache.put(key, val);
+		m_logger.debug("put end.");
+		
+	}
+
+	@Override
+	protected boolean flushImpl() {
+		m_logger.debug("flushImpl start.");
+		return m_readCache.flush();
 	}
 }

@@ -40,8 +40,9 @@ public class ReceiptsMessage  extends BaseMessage{
                 if (receiptRLP.size() != 4) {
                     continue;
                 }
-                TransactionReceipt receipt = new TransactionReceipt(receiptRLP);
-                blockReceipts.add(receipt);
+    	        //TODO
+                //TransactionReceipt receipt = new TransactionReceipt(receiptRLP);
+                //blockReceipts.add(receipt);
             }
             m_receipts.add(blockReceipts);
         }
@@ -54,7 +55,8 @@ public class ReceiptsMessage  extends BaseMessage{
         for (List<TransactionReceipt> blockReceipts : m_receipts) {
             List<byte[]> encodedBlockReceipts = new ArrayList<>();
             for (TransactionReceipt txReceipt : blockReceipts) {
-                encodedBlockReceipts.add(txReceipt.getEncoded(true));
+    	        //TODO
+                //encodedBlockReceipts.add(txReceipt.getEncoded(true));
             }
             byte[][] encodedElementArray = encodedBlockReceipts.toArray(new byte[encodedBlockReceipts.size()][]);
             byte[] blockReceiptsEncoded = RLP.encodeList(encodedElementArray);

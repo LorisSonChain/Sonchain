@@ -6,13 +6,18 @@ import org.apache.commons.collections4.map.LRUMap;
 import org.apache.log4j.Logger;
 import org.bouncycastle.util.encoders.Hex;
 
+import sonchain.blockchain.datasource.base.AbstractCachedSource;
+import sonchain.blockchain.datasource.base.CachedSource;
+import sonchain.blockchain.datasource.base.Source;
 import sonchain.blockchain.db.ByteArrayWrapper;
+import sonchain.blockchain.db.StringWrapper;
 import sonchain.blockchain.util.ByteArrayMap;
+import sonchain.blockchain.util.StringMap;
 
 public class ReadCache<Key, Value> extends AbstractCachedSource<Key, Value> {
 
 	public static final Logger m_logger = Logger.getLogger(ReadCache.class);
-    private boolean m_byteKeyMap = false;
+    private boolean m_stringKeyMap = false;
     private Map<Key, Value> m_cache = null;
     // the guard against incorrect Map implementation for byte[] keys
     private boolean m_checked = false;
@@ -21,6 +26,23 @@ public class ReadCache<Key, Value> extends AbstractCachedSource<Key, Value> {
         super(src);
         withCache(new HashMap<Key, Value>());
         m_logger.debug("ReadCache init end");
+    }
+    
+    private void checkStringKey(Key key) {
+        m_logger.debug("ReadCache checkByteArrKey start");
+        if(m_cache != null){
+        	m_logger.debug("Cache HashCode:" + m_cache.hashCode());
+        }
+        if (m_checked){
+        	return;
+        }
+        if (key instanceof String) {
+            if (!m_stringKeyMap) {
+                throw new RuntimeException("Wrong map/set for String key");
+            }
+        }
+        m_checked = true;
+        m_logger.debug("ReadCache checkByteArrKey end");
     }
     
     private void checkByteArrKey(Key key) {
@@ -32,7 +54,7 @@ public class ReadCache<Key, Value> extends AbstractCachedSource<Key, Value> {
         	return;
         }
         if (key instanceof byte[]) {
-            if (!m_byteKeyMap) {
+            if (m_stringKeyMap) {
                 throw new RuntimeException("Wrong map/set for byte[] key");
             }
         }
@@ -42,11 +64,11 @@ public class ReadCache<Key, Value> extends AbstractCachedSource<Key, Value> {
 
     @Override
     public void delete(Key key) {
-        m_logger.debug("ReadCache delete start key:" + Hex.toHexString((byte[])key));
+    	checkStringKey(key);
+        m_logger.debug("ReadCache delete start key:" + key.toString());
         if(m_cache != null){
         	m_logger.debug("Cache HashCode:" + m_cache.hashCode());
         }
-    	checkByteArrKey(key);
         Value value = m_cache.remove(key);
         cacheRemoved(key, value);
         getSource().delete(key);
@@ -55,14 +77,14 @@ public class ReadCache<Key, Value> extends AbstractCachedSource<Key, Value> {
 
     @Override
     public Value get(Key key) {
-        m_logger.debug("ReadCache get start key:" + Hex.toHexString((byte[])key));
+    	checkStringKey(key);
+        m_logger.debug("ReadCache get start key:" + key.toString());
         if(m_cache != null){
         	m_logger.debug("Cache HashCode:" + m_cache.hashCode());
         }
-    	checkByteArrKey(key);
         Value ret = m_cache.get(key);
         if (ret == null) {
-            m_logger.debug("ReadCache get end null key:" +  Hex.toHexString((byte[])key));
+            m_logger.debug("ReadCache get end null key:" +  key.toString());
         }
         if (ret == null) {
             ret = getSource().get(key);
@@ -75,7 +97,8 @@ public class ReadCache<Key, Value> extends AbstractCachedSource<Key, Value> {
 
     @Override
     public synchronized Entry<Value> getCached(Key key) {
-        m_logger.debug("ReadCache getCached start key:" + Hex.toHexString((byte[])key));
+    	checkStringKey(key);
+        m_logger.debug("ReadCache getCached start key:" + key.toString());
         if(m_cache != null){
         	m_logger.debug("Cache HashCode:" + m_cache.hashCode());
         }
@@ -111,21 +134,21 @@ public class ReadCache<Key, Value> extends AbstractCachedSource<Key, Value> {
 
     @Override
     public void put(Key key, Value val) {
+    	checkStringKey(key);
         m_logger.debug("ReadCache put start cacheID:" + m_cache.hashCode() 
-        	+ " key:" + Hex.toHexString((byte[])key) + " val: " + val);
+        	+ " key:" + key.toString() + " val: " + val);
         if(m_cache != null){
         	m_logger.debug("Cache HashCode:" + m_cache.hashCode());
         }
-    	checkByteArrKey(key);
         if (val == null) {
             delete(key);
-            m_logger.debug("ReadCache put delete end key:" + Hex.toHexString((byte[])key) + " val: " + val);
+            m_logger.debug("ReadCache put delete end key:" + key.toString() + " val: " + val);
         } else {
         	m_cache.put(key, val);
             cacheAdded(key, val);
             getSource().put(key, val);
         }
-        m_logger.debug("ReadCache put end key:" + Hex.toHexString((byte[])key) + " val: " + val);
+        m_logger.debug("ReadCache put end key:" + key.toString() + " val: " + val);
     }
 
     /**
@@ -136,7 +159,7 @@ public class ReadCache<Key, Value> extends AbstractCachedSource<Key, Value> {
         if(m_cache != null){
         	m_logger.debug("Cache HashCode:" + m_cache.hashCode());
         }
-    	m_byteKeyMap = cache instanceof ByteArrayMap;
+        m_stringKeyMap = cache instanceof StringMap;
         m_cache = Collections.synchronizedMap(cache);
         m_logger.debug("ReadCache withCache end");
         return this;
@@ -171,6 +194,31 @@ public class ReadCache<Key, Value> extends AbstractCachedSource<Key, Value> {
             withCache(new ByteArrayMap<V>(new LRUMap<ByteArrayWrapper, V>(maxCapacity) {
                 @Override
                 protected boolean removeLRU(LinkEntry<ByteArrayWrapper, V> entry) {
+                    cacheRemoved(entry.getKey().getData(), entry.getValue());
+                    return super.removeLRU(entry);
+                }
+            }));
+            m_logger.debug("ReadCache withMaxCapacity end");
+            return this;
+        }
+    }
+
+    /**
+     * Shortcut for ReadCache with byte[] keys. Also prevents accidental
+     * usage of regular Map implementation (non byte[])
+     */
+    public static class StringKey<V> extends ReadCache<String, V> implements CachedSource.StringKey<V> {
+
+        public StringKey(Source<String, V> src) {
+            super(src);
+            withCache(new StringMap<V>());
+        }
+
+        public ReadCache.StringKey<V> withMaxCapacity(int maxCapacity) {
+            m_logger.debug("ReadCache withMaxCapacity start");
+            withCache(new StringMap<V>(new LRUMap<StringWrapper, V>(maxCapacity) {
+                @Override
+                protected boolean removeLRU(LinkEntry<StringWrapper, V> entry) {
                     cacheRemoved(entry.getKey().getData(), entry.getValue());
                     return super.removeLRU(entry);
                 }

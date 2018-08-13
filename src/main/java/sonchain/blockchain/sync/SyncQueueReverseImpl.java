@@ -2,6 +2,8 @@ package sonchain.blockchain.sync;
 
 import java.util.*;
 
+import org.bouncycastle.util.encoders.Hex;
+
 import sonchain.blockchain.core.Block;
 import sonchain.blockchain.core.BlockHeaderWrapper;
 import sonchain.blockchain.util.ByteArrayMap;
@@ -98,7 +100,7 @@ public class SyncQueueReverseImpl implements SyncQueueInterface {
                 }
                 break;
             }
-            if (!FastByteComparisons.equal(header.getHeader().getParentHash(), parent.getHash())) {
+            if (!header.getHeader().getParentHash().equals(Hex.toHexString(parent.getHash()))) {
                 // chain is broken here (unlikely) - refetch the rest
             	m_headers.clearAllBefore(header.getNumber());
                 break;

@@ -11,6 +11,7 @@ import sonchain.blockchain.core.BlockHeaderWrapper;
 import sonchain.blockchain.db.ByteArrayWrapper;
 import sonchain.blockchain.util.ByteArrayMap;
 import sonchain.blockchain.util.Functional;
+import sonchain.blockchain.util.Numeric;
 
 public class SyncQueueImpl implements SyncQueueInterface {
     static int MAX_CHAIN_LEN = 192;
@@ -135,7 +136,7 @@ public class SyncQueueImpl implements SyncQueueInterface {
         public HeaderElement getParent() {
             Map<ByteArrayWrapper, HeaderElement> genHeaders = headers.get(header.getNumber() - 1);
             if (genHeaders == null) return null;
-            return genHeaders.get(new ByteArrayWrapper(header.getHeader().getParentHash()));
+            return genHeaders.get(new ByteArrayWrapper(Numeric.hexStringToByteArray(header.getHeader().getParentHash())));
         }
 
         public List<HeaderElement> getChildren() {
@@ -143,7 +144,7 @@ public class SyncQueueImpl implements SyncQueueInterface {
             Map<ByteArrayWrapper, HeaderElement> childGenHeaders = headers.get(header.getNumber() + 1);
             if (childGenHeaders != null) {
                 for (HeaderElement child : childGenHeaders.values()) {
-                    if (Arrays.equals(child.header.getHeader().getParentHash(), header.getHash())) {
+                    if (child.header.getHeader().getParentHash().equals(Hex.toHexString(header.getHash()))) {
                         ret.add(child);
                     }
                 }
@@ -167,10 +168,10 @@ public class SyncQueueImpl implements SyncQueueInterface {
 
     public SyncQueueImpl(BlockChain bc) {
         Block bestBlock = bc.getBestBlock();
-        long start = bestBlock.getNumber() - MAX_CHAIN_LEN;
+        long start = bestBlock.getBlockNumber() - MAX_CHAIN_LEN;
         start = start < 0 ? 0 : start;
         List<Block> initBlocks = new ArrayList<>();
-        for (long i = start; i <= bestBlock.getNumber(); i++) {
+        for (long i = start; i <= bestBlock.getBlockNumber(); i++) {
             initBlocks.add(bc.getBlockByNumber(i));
         }
         init(initBlocks);
@@ -187,14 +188,14 @@ public class SyncQueueImpl implements SyncQueueInterface {
     }
 
     private void init(List<Block> initBlocks) {
-        if (initBlocks.size() < MAX_CHAIN_LEN && initBlocks.get(0).getNumber() != 0) {
+        if (initBlocks.size() < MAX_CHAIN_LEN && initBlocks.get(0).getBlockNumber() != 0) {
             throw new RuntimeException("Queue should be initialized with a chain of at least " + MAX_CHAIN_LEN + " size or with the first genesis block");
         }
         for (Block block : initBlocks) {
             addHeaderPriv(new BlockHeaderWrapper(block.getHeader(), null));
             addBlock(block).exported = true;
         }
-        darkZoneNum = initBlocks.get(0).getNumber();
+        darkZoneNum = initBlocks.get(0).getBlockNumber();
     }
 
     private void putGenHeaders(long num, Map<ByteArrayWrapper, HeaderElement> genHeaders) {
@@ -361,7 +362,7 @@ public class SyncQueueImpl implements SyncQueueInterface {
     }
 
     HeaderElement findHeaderElement(BlockHeader bh) {
-        Map<ByteArrayWrapper, HeaderElement> genHeaders = headers.get(bh.getNumber());
+        Map<ByteArrayWrapper, HeaderElement> genHeaders = headers.get(bh.getBlockNumber());
         if (genHeaders == null) return null;
         return genHeaders.get(new ByteArrayWrapper(bh.getHash()));
     }

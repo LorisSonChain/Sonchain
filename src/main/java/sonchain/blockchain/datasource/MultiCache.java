@@ -1,8 +1,12 @@
 package sonchain.blockchain.datasource;
 
-public abstract class MultiCache<V extends CachedSource> extends ReadWriteCache.BytesKey<V> {
+import sonchain.blockchain.datasource.base.AbstractCachedSource;
+import sonchain.blockchain.datasource.base.CachedSource;
+import sonchain.blockchain.datasource.base.Source;
 
-    public MultiCache(Source<byte[], V> src) {
+public abstract class MultiCache<V extends CachedSource> extends ReadWriteCache.StringKey<V> {
+
+    public MultiCache(Source<String, V> src) {
         super(src, WriteCache.CacheType.SIMPLE);
     }
     
@@ -10,13 +14,13 @@ public abstract class MultiCache<V extends CachedSource> extends ReadWriteCache.
      * Creates a local child cache instance based on the child cache instance
      * (or null) from the MultiCache backing Source
      */
-    protected abstract V create(byte[] key, V srcCache);
+    protected abstract V create(String key, V srcCache);
 
     /**
      * Is invoked to flush child cache if it has backing Source
      * Some additional tasks may be performed by subclasses here
      */
-    protected boolean flushChild(byte[] key, V childCache) {
+    protected boolean flushChild(String key, V childCache) {
         return childCache != null ? childCache.flush() : true;
     }
 
@@ -27,7 +31,7 @@ public abstract class MultiCache<V extends CachedSource> extends ReadWriteCache.
     @Override
     public synchronized boolean flushImpl() {
         boolean ret = false;
-        for (byte[] key: m_writeCache.getModified()) {
+        for (String key: m_writeCache.getModified()) {
             V value = super.get(key);
             if (value == null) {
                 // cache was deleted
@@ -51,7 +55,7 @@ public abstract class MultiCache<V extends CachedSource> extends ReadWriteCache.
      * via create() method
      */
     @Override
-    public synchronized V get(byte[] key) {
+    public synchronized V get(String key) {
         AbstractCachedSource.Entry<V> ownCacheEntry = getCached(key);
         V ownCache = ownCacheEntry == null ? null : ownCacheEntry.value();
         if (ownCache == null) {

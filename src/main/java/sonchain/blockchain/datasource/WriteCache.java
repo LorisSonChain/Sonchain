@@ -9,6 +9,11 @@ import com.googlecode.concurentlocks.ReadWriteUpdateLock;
 import com.googlecode.concurentlocks.ReentrantReadWriteUpdateLock;
 
 import sonchain.blockchain.util.CLock;
+import sonchain.blockchain.util.StringMap;
+import sonchain.blockchain.datasource.base.AbstractCachedSource;
+import sonchain.blockchain.datasource.base.CachedSource;
+import sonchain.blockchain.datasource.base.Source;
+import sonchain.blockchain.datasource.base.AbstractCachedSource.Entry;
 import sonchain.blockchain.util.ByteArrayMap;
 import sonchain.blockchain.util.ByteUtil;
 
@@ -89,7 +94,7 @@ public class WriteCache<Key, Value> extends AbstractCachedSource<Key, Value> {
 
     private boolean m_checked = false;
     protected volatile Map<Key, CacheEntry<Value>> m_cache = new HashMap<>();
-    private final boolean m_isCounting;
+    private boolean m_isCounting = false;
     protected ReadWriteUpdateLock m_rwuLock = new ReentrantReadWriteUpdateLock();
     protected CLock m_readLock = new CLock(m_rwuLock.readLock());
     protected CLock m_writeLock = new CLock(m_rwuLock.writeLock());
@@ -111,7 +116,37 @@ public class WriteCache<Key, Value> extends AbstractCachedSource<Key, Value> {
     	m_cacheName = cacheName;
         m_logger.debug("withCacheName init end. cacheName:" + cacheName);
         return this;
-    }    
+    }   
+    
+    public Map<Key, CacheEntry<Value>> getCache(){
+    	return m_cache;
+    }
+    
+    public void setCache(Map<Key, CacheEntry<Value>> cache){
+    	m_cache = cache;
+    }
+
+    // Guard against wrong cache Map
+    // if a regular Map is accidentally used for byte[] type keys
+    // the situation might be tricky to debug
+    private void checkStringKey(Key key) {
+        m_logger.debug("checkByteArrKey start key:" + key.toString());
+        if(m_cache != null){
+        	m_logger.debug("Cache HashCode:" + m_cache.hashCode());
+        }
+        if (m_checked){
+            m_logger.debug("checkByteArrKey end.");
+        	return;
+        }
+        if (key instanceof String) {
+            if (!(m_cache instanceof StringMap)) {
+            	m_logger.debug("Cache HashCode:" + m_cache.hashCode());
+                throw new RuntimeException("Wrong map/set for String key");
+            }
+        }
+        m_checked = true;
+        m_logger.debug("checkByteArrKey end.");
+    }
 
     // Guard against wrong cache Map
     // if a regular Map is accidentally used for byte[] type keys
@@ -150,11 +185,11 @@ public class WriteCache<Key, Value> extends AbstractCachedSource<Key, Value> {
 
     @Override
     public void delete(Key key) {
-        m_logger.debug("delete start. cacheName:" + m_cacheName + " key:" + Hex.toHexString((byte[])key));
+        checkStringKey(key);
+        m_logger.debug("delete start. cacheName:" + m_cacheName + " key:" + key.toString());
         if(m_cache != null){
         	m_logger.debug("Cache HashCode:" + m_cache.hashCode());
         }
-        checkByteArrKey(key);
         try (CLock l = m_writeLock.lock()){
             CacheEntry<Value> curVal = m_cache.get(key);
             if (curVal == null) {
@@ -170,20 +205,6 @@ public class WriteCache<Key, Value> extends AbstractCachedSource<Key, Value> {
         m_logger.debug("delete end. cacheName:" + m_cacheName);
     }
 
-    public long debugCacheSize() {
-        m_logger.debug("debugCacheSize start. cacheName:" + m_cacheName);
-        if(m_cache != null){
-        	m_logger.debug("Cache HashCode:" + m_cache.hashCode());
-        }
-        long ret = 0;
-        for (Map.Entry<Key, CacheEntry<Value>> entry : m_cache.entrySet()) {
-            ret += m_keySizeEstimator.estimateSize(entry.getKey());
-            ret += m_valueSizeEstimator.estimateSize(entry.getValue().value());
-        }
-        m_logger.debug("debugCacheSize end. result:" + ret);
-        return ret;
-    }
-
     @Override
     public boolean flush() {
         m_logger.debug("flush start.cacheName:" + m_cacheName);
@@ -196,6 +217,10 @@ public class WriteCache<Key, Value> extends AbstractCachedSource<Key, Value> {
             	if(entry.getKey() instanceof byte[] && entry.getValue().m_value instanceof byte[]){
                 	m_logger.debug("flush cacheName: " + m_cacheName + " flush key:" + ByteUtil.toHexString((byte[])entry.getKey())
                 	+ "[value :]" + ByteUtil.toHexString((byte[])entry.getValue().m_value));
+            	}
+            	else if(entry.getKey() instanceof String && entry.getValue().m_value instanceof String){
+                	m_logger.debug("flush cacheName: " + m_cacheName + " flush key:" + entry.getKey().toString()
+                	+ "[value :]" + entry.getValue().m_value.toString());
             	}
                 if (entry.getValue().m_counter > 0) {
                     for (int i = 0; i < entry.getValue().m_counter; i++) {
@@ -232,11 +257,11 @@ public class WriteCache<Key, Value> extends AbstractCachedSource<Key, Value> {
 
     @Override
     public Value get(Key key) {
-        m_logger.debug("get start.cacheName:" + m_cacheName + " key:" + Hex.toHexString((byte[])key));
+        checkStringKey(key);
+        m_logger.debug("get start.cacheName:" + m_cacheName + " key:" + key.toString());
         if(m_cache != null){
         	m_logger.debug("Cache HashCode:" + m_cache.hashCode());
         }
-        checkByteArrKey(key);
         try (CLock l = m_readLock.lock()){
             CacheEntry<Value> curVal = m_cache.get(key);
             if (curVal == null) {
@@ -256,9 +281,11 @@ public class WriteCache<Key, Value> extends AbstractCachedSource<Key, Value> {
         }
 		return null;
     }
-
+    
+    @Override
     public Entry<Value> getCached(Key key) {
-        m_logger.debug("getCached start.cacheName:" + m_cacheName + " key:" + Hex.toHexString((byte[])key));
+        checkStringKey(key);
+        m_logger.debug("getCached start.cacheName:" + m_cacheName + " key:" + key.toString());
         if(m_cache != null){
         	m_logger.debug("Cache HashCode:" + m_cache.hashCode());
         }
@@ -294,16 +321,16 @@ public class WriteCache<Key, Value> extends AbstractCachedSource<Key, Value> {
 
     @Override
     public void put(Key key, Value val) {
+        checkStringKey(key);
         m_logger.debug("put start.cacheName:" + m_cacheName 
-        		+ " key:" + Hex.toHexString((byte[])key) + " val:" + val);
+        		+ " key:" + key.toString() + " val:" + val);
         if(m_cache != null){
         	m_logger.debug("Cache HashCode:" + m_cache.hashCode());
         }
-        checkByteArrKey(key);
         if (val == null)  {
             delete(key);
             m_logger.debug("put delete end."
-            		+ " key:" + Hex.toHexString((byte[])key) + " val:" + val);
+            		+ " key:" + key.toString() + " val:" + val);
             return;
         }
         try (CLock l = m_writeLock.lock()){
@@ -316,8 +343,6 @@ public class WriteCache<Key, Value> extends AbstractCachedSource<Key, Value> {
                 }
                 cacheAdded(key, curVal.m_value);
             }
-            // assigning for non-counting cache only
-            // for counting cache the value should be immutable (see HashedKeySource)
             curVal.m_value = val;
             curVal.added();
         }
@@ -337,6 +362,18 @@ public class WriteCache<Key, Value> extends AbstractCachedSource<Key, Value> {
             super(src, cacheType);
             withCache(new ByteArrayMap<CacheEntry<V>>());
             m_logger.debug("BytesKey");
+        }
+    }
+    
+    /**
+     * Shortcut for WriteCache with byte[] keys. Also prevents accidental
+     * usage of regular Map implementation (non byte[])
+     */
+    public static class StringKey<V> extends WriteCache<String, V> implements CachedSource.StringKey<V> {
+        public StringKey(Source<String, V> src, CacheType cacheType) {
+            super(src, cacheType);
+            withCache(new StringMap<CacheEntry<V>>());
+            m_logger.debug("StringKey");
         }
     }
 }

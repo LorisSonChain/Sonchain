@@ -7,7 +7,6 @@ import org.apache.log4j.Logger;
 import org.bouncycastle.util.BigIntegers;
 import org.bouncycastle.util.encoders.Hex;
 
-import sonchain.blockchain.accounts.WalletManager;
 import sonchain.blockchain.accounts.keystore.WalletFile;
 import sonchain.blockchain.base.HttpData;
 import sonchain.blockchain.base.HttpEasyService;
@@ -22,6 +21,8 @@ import sonchain.blockchain.crypto.ECKey;
 import sonchain.blockchain.crypto.HashUtil;
 import sonchain.blockchain.crypto.Keys;
 import sonchain.blockchain.data.CredentialData;
+import sonchain.blockchain.plugins.wallet.WalletManager;
+import sonchain.blockchain.plugins.wallet.WalletUtil;
 import sonchain.blockchain.util.ByteUtil;
 import sonchain.blockchain.util.Numeric;
 
@@ -36,7 +37,7 @@ public class BlockWalletService implements HttpEasyService {
 				String function = data.m_parameters.get("function");
 				if (function.equalsIgnoreCase("generatefullnewwalletfilebypassword")) {
 					String password = data.m_parameters.get("password");
-					data.m_resStr = WalletManager.generateFullNewWallet(password);
+					data.m_resStr = WalletUtil.generateFullNewWallet(password);
 				}
 				else if (function.equalsIgnoreCase("unlockwallet")) {
 					String type = data.m_parameters.get("type");
@@ -44,22 +45,22 @@ public class BlockWalletService implements HttpEasyService {
 					if(type.equals("0"))
 					{
 						String password = data.m_parameters.get("password");
-						data.m_resStr = WalletManager.getCredentialDataString(password, content);
+						data.m_resStr = WalletUtil.getCredentialDataString(password, content);
 					}
 					else if(type.equals("1"))
 					{
-						if(!WalletManager.isValidPrivateKey(content))
+						if(!WalletUtil.isValidPrivateKey(content))
 						{
 							data.m_resStr = "-1";					
 						}
 						else
 						{
-							data.m_resStr = WalletManager.loadCredentialsString(content);
+							data.m_resStr = WalletUtil.loadCredentialsString(content);
 						}
 					}
 					else if(type.equals("2"))
 					{
-						data.m_resStr = WalletManager.getBalanceString(content);
+						data.m_resStr = WalletUtil.getBalanceString(content);
 					}
 				}
 				else if (function.equalsIgnoreCase("getbalance")) {
@@ -71,7 +72,7 @@ public class BlockWalletService implements HttpEasyService {
 				else if (function.equalsIgnoreCase("getprivatekey")) {
 					String privatejson = data.m_parameters.get("privatejson");
 					String password = data.m_parameters.get("password");
-					data.m_resStr = WalletManager.getPrivateKey(password, privatejson);
+					data.m_resStr = WalletUtil.getPrivateKey(password, privatejson);
 				}
 				else if (function.equalsIgnoreCase("transfer")) {
 					String privateKey = data.m_parameters.get("privatekey");
@@ -122,7 +123,8 @@ public class BlockWalletService implements HttpEasyService {
                 receiveAddress,
                 ByteUtil.bigIntegerToBytes(value),
                 data);
-        tx.sign(senderKey);
+        //TODO
+        //tx.sign(senderKey);
         return tx;
     }
 }

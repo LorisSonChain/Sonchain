@@ -1,7 +1,7 @@
 package sonchain.blockchain.peer;
 import sonchain.blockchain.base.*;
 import sonchain.blockchain.consensus.ConsensusPayload;
-import sonchain.blockchain.consensus.SonChainPeerNode;
+import sonchain.blockchain.consensus.SonChainProducerNode;
 import sonchain.blockchain.core.*;
 import sonchain.blockchain.data.*;
 import sonchain.blockchain.db.StateSource;
@@ -86,13 +86,13 @@ public class SonChainServicePeer extends BaseServicePeer{
         m_connected = connected;
     }
     
-    private SonChainPeerNode m_sonChainPeerNode = null;
+    private SonChainProducerNode m_sonChainPeerNode = null;
 
-    public SonChainPeerNode getSonChainPeerNode() {
+    public SonChainProducerNode getSonChainPeerNode() {
 		return m_sonChainPeerNode;
 	}
 
-	public void setSonChainPeerNode(SonChainPeerNode sonChainPeerNode) {
+	public void setSonChainPeerNode(SonChainProducerNode sonChainPeerNode) {
 		m_sonChainPeerNode = sonChainPeerNode;
 	}
 
@@ -385,9 +385,9 @@ public class SonChainServicePeer extends BaseServicePeer{
     }
 
     private void updateBestBlock(BlockHeader header) {
-        if (m_bestKnownBlock == null || header.getNumber() > m_bestKnownBlock.getNumber()) 
+        if (m_bestKnownBlock == null || header.getBlockNumber() > m_bestKnownBlock.getNumber()) 
         {
-        	m_bestKnownBlock = new BlockIdentifier(header.getHash(), header.getNumber());
+        	m_bestKnownBlock = new BlockIdentifier(header.getHash(), header.getBlockNumber());
         }
     }
     
@@ -633,19 +633,20 @@ public class SonChainServicePeer extends BaseServicePeer{
                 body = bodies.next();
             }
 
-            Block b = new Block.Builder()
-                    .withHeader(wrapper.getHeader())
-                    .withBody(body)
-                    .create();
-
-            if (b == null) {
-                blockMerged = false;
-            } else {
-                blockMerged = true;
-
-                coveredHeaders.add(wrapper);
-                blocks.add(b);
-            }
+        	//TODO
+//            Block b = new Block.Builder()
+//                    .withHeader(wrapper.getHeader())
+//                    .withBody(body)
+//                    .create();
+//
+//            if (b == null) {
+//                blockMerged = false;
+//            } else {
+//                blockMerged = true;
+//
+//                coveredHeaders.add(wrapper);
+//                blocks.add(b);
+//            }
         }
 
         if (bodies.hasNext()) {
@@ -721,7 +722,7 @@ public class SonChainServicePeer extends BaseServicePeer{
 	    	NewBlockMessage newBlockMessage = new NewBlockMessage(message.m_body);
 	        Block newBlock = newBlockMessage.getBlock();
 	        m_logger.debug(String.format("New block received: block.index [{%d}]", 
-	        		newBlock.getNumber()));
+	        		newBlock.getBlockNumber()));
 	        updateBestBlock(newBlock);
 //	        if (!syncManager.validateAndAddNewBlock(newBlock, channel.getNodeId())) {
 //	            dropConnection();
@@ -841,12 +842,13 @@ public class SonChainServicePeer extends BaseServicePeer{
 	            if (block == null) continue;
 
 	            List<TransactionReceipt> blockReceipts = new ArrayList<>();
-	            for (Transaction transaction : block.getTransactionsList()) {
-	                TransactionInfo transactionInfo = DataCenter.getSonChainImpl().
-	                		getBlockChain().getTransactionInfo(transaction.getHash());
-	                if (transactionInfo == null) break;
-	                blockReceipts.add(transactionInfo.getReceipt());
-	            }
+            	//TODO
+//	            for (Transaction transaction : block.getTransactionsList()) {
+//	                TransactionInfo transactionInfo = DataCenter.getSonChainImpl().
+//	                		getBlockChain().getTransactionInfo(transaction.getHash());
+//	                if (transactionInfo == null) break;
+//	                blockReceipts.add(transactionInfo.getReceipt());
+//	            }
 	            receipts.add(blockReceipts);
 	        }
 	        
@@ -908,7 +910,7 @@ public class SonChainServicePeer extends BaseServicePeer{
 
     protected synchronized void processInitHeaders(List<BlockHeader> received) {
         final BlockHeader blockHeader = received.get(0);
-        final long blockNumber = blockHeader.getNumber();
+        final long blockNumber = blockHeader.getBlockNumber();
         if (m_sonState == SonState.STATUS_SENT) {
             updateBestBlock(blockHeader);
             m_logger.trace(String.format("Peer {%s}: init request succeeded, "
@@ -1012,7 +1014,7 @@ public class SonChainServicePeer extends BaseServicePeer{
                 return false;
             }
         } else {
-            if (request.getBlockNumber() != first.getNumber()) {
+            if (request.getBlockNumber() != first.getBlockNumber()) {
 
                 if (m_logger.isInfoEnabled())
                 {
@@ -1036,8 +1038,8 @@ public class SonChainServicePeer extends BaseServicePeer{
             BlockHeader cur = headers.get(i);
             BlockHeader prev = headers.get(i - 1);
 
-            long num = cur.getNumber();
-            long expectedNum = prev.getNumber() + offset;
+            long num = cur.getBlockNumber();
+            long expectedNum = prev.getBlockNumber() + offset;
 
             if (num != expectedNum) {
                 if (m_logger.isInfoEnabled()) 
@@ -1058,14 +1060,14 @@ public class SonChainServicePeer extends BaseServicePeer{
                     parent = prev;
                     child = cur;
                 }
-                if (!Arrays.equals(child.getParentHash(), parent.getHash())) {
+                if (!child.getParentHash().equals(Hex.toHexString(parent.getHash()))) {
                     if (m_logger.isInfoEnabled()) 
                     {
                     	m_logger.info(
                     			String.format("Peer {%s}: invalid response to {%s}, got parent hash "
                     					+ "{%s} for #{%d}, expected {%s}",
-                    					m_sonChainPeerNode.toString(), request, Hex.toHexString(child.getParentHash()),
-                            prev.getNumber(), Hex.toHexString(parent.getHash()))
+                    					m_sonChainPeerNode.toString(), request, child.getParentHash(),
+                            prev.getBlockNumber(), Hex.toHexString(parent.getHash()))
                     	);
                     }
                     return false;
@@ -1244,7 +1246,7 @@ public class SonChainServicePeer extends BaseServicePeer{
     }
        
     public synchronized void sendNewBlockHashes(Block block) {
-        BlockIdentifier identifier = new BlockIdentifier(block.getHash(), block.getNumber());
+        BlockIdentifier identifier = new BlockIdentifier(block.getHash(), block.getBlockNumber());
         NewBlockHashesMessage msg = new NewBlockHashesMessage(Collections.singletonList(identifier));
 
         sendMessage(msg);

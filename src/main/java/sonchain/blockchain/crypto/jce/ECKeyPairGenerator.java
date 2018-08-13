@@ -15,15 +15,10 @@ import java.security.spec.ECGenParameterSpec;
 public class ECKeyPairGenerator {
 	public static final String ALGORITHM = "EC";
 	  public static final String CURVE_NAME = "secp256k1";
+	  private static final String algorithmAssertionMsg = "Assumed JRE supports EC key pair generation";
+	  private static final String keySpecAssertionMsg = "Assumed correct key spec statically";
 
-	  private static final String algorithmAssertionMsg =
-	      "Assumed JRE supports EC key pair generation";
-
-	  private static final String keySpecAssertionMsg =
-	      "Assumed correct key spec statically";
-
-	  private static final ECGenParameterSpec SECP256K1_CURVE
-	      = new ECGenParameterSpec(CURVE_NAME);
+	  private static final ECGenParameterSpec SECP256K1_CURVE = new ECGenParameterSpec(CURVE_NAME);
 
 	  private ECKeyPairGenerator() { }
 

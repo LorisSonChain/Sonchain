@@ -38,16 +38,16 @@ public class BlockLoader {
 	public static final Logger m_logger = Logger.getLogger(BlockLoader.class);
 
     private void BlockWork(Block block) {
-        if (block.getNumber() >= DataCenter.getSonChainImpl().getBlockChain().getBlockStore().getBestBlock().getNumber() 
+        if (block.getBlockNumber() >= DataCenter.getSonChainImpl().getBlockChain().getBlockStore().getBestBlock().getBlockNumber() 
         		|| DataCenter.getSonChainImpl().getBlockChain().getBlockStore().getBlockByHash(block.getHash()) == null) {
-            if (block.getNumber() > 0 && !IsValid(block.getHeader())) {
+            if (block.getBlockNumber() > 0 && !IsValid(block.getHeader())) {
                 throw new RuntimeException();
             }
 
             long s = System.currentTimeMillis();
             ImportResult result = DataCenter.getSonChainImpl().getBlockChain().tryToConnect(block);
 
-            if (block.getNumber() % 10 == 0) {
+            if (block.getBlockNumber() % 10 == 0) {
                 System.out.println(m_dfHHmmssSSSS.format(new Date()) + " Imported block " + block.getShortDescr() 
                 		+ ": " + result + " (prework: "
                         + m_executorPipeline1.GetQueue().size() + ", work: " + m_executorPipeline2.GetQueue().size()
@@ -55,8 +55,8 @@ public class BlockLoader {
                         (System.currentTimeMillis() - s) + " ms");
             }
         } else {
-            if (block.getNumber() % 10000 == 0)
-                System.out.println("Skipping block #" + block.getNumber());
+            if (block.getBlockNumber() % 10000 == 0)
+                System.out.println("Skipping block #" + block.getBlockNumber());
         }
     }
     
@@ -69,10 +69,11 @@ public class BlockLoader {
     			new Functional.Function<Block, Block>() {
             @Override
             public Block apply(Block b) {
-                if (b.getNumber() >= DataCenter.getSonChainImpl().getBlockChain().getBlockStore().getBestBlock().getNumber()) {
-                    for (Transaction tx : b.getTransactionsList()) {
-                        tx.getSender();
-                    }
+                if (b.getBlockNumber() >= DataCenter.getSonChainImpl().getBlockChain().getBlockStore().getBestBlock().getBlockNumber()) {
+                	//TODO
+                    //for (Transaction tx : b.getTransactionsList()) {
+                    //    tx.getSenderAddress();
+                    //}
                 }
                 return b;
             }
@@ -104,16 +105,18 @@ public class BlockLoader {
                 byte[] data = Files.readAllBytes(path);
                 RLPList list = RLP.decode2(data);
                 for (RLPElement item : list) {
-                    Block block = new Block(item.getRLPData());
-                    m_executorPipeline1.Push(block);
+                	//TODO
+                    //Block block = new Block(item.getRLPData());
+                    //m_executorPipeline1.Push(block);
                 }
             } else {                                        // hex string
                 FileInputStream inputStream = new FileInputStream(fileSrc);
                 m_scanner = new Scanner(inputStream, "UTF-8");
                 while (m_scanner.hasNextLine()) {
                     byte[] blockRLPBytes = Hex.decode(m_scanner.nextLine());
-                    Block block = new Block(blockRLPBytes);
-                    m_executorPipeline1.Push(block);
+                	//TODO
+                    //Block block = new Block(blockRLPBytes);
+                    //m_executorPipeline1.Push(block);
                 }
             }
         } catch (Exception e) {

@@ -5,13 +5,13 @@ import org.bouncycastle.util.encoders.Hex;
 
 import sonchain.blockchain.accounts.AccountState;
 import sonchain.blockchain.core.Repository;
-import sonchain.blockchain.datasource.CachedSource;
 import sonchain.blockchain.datasource.MultiCache;
 import sonchain.blockchain.datasource.ReadWriteCache;
 import sonchain.blockchain.datasource.Serializers;
-import sonchain.blockchain.datasource.Source;
 import sonchain.blockchain.datasource.SourceCodec;
 import sonchain.blockchain.datasource.WriteCache;
+import sonchain.blockchain.datasource.base.CachedSource;
+import sonchain.blockchain.datasource.base.Source;
 import sonchain.blockchain.trie.SecureTrie;
 import sonchain.blockchain.trie.Trie;
 import sonchain.blockchain.trie.TrieImpl;
@@ -48,15 +48,17 @@ public class RepositoryRoot extends RepositoryImpl {
             super(null);
         }
         @Override
-        protected synchronized StorageCache create(byte[] key, StorageCache srcCache) {
-            AccountState accountState = m_accountStateCache.get(key);
-            TrieImpl storageTrie = createTrie(m_trieCache, accountState == null ? 
-            		null : accountState.getStateRoot());
-            return new StorageCache(storageTrie);
+        protected synchronized StorageCache create(String key, StorageCache srcCache) {
+            //TODO
+        	return null;
+//            AccountState accountState = m_accountStateCache.get(key);
+//            TrieImpl storageTrie = createTrie(m_trieCache, accountState == null ? 
+//            		null : accountState.getStateRoot());
+//            return new StorageCache(storageTrie);
         }
 
         @Override
-        protected synchronized boolean flushChild(byte[] key, StorageCache childCache) {
+        protected synchronized boolean flushChild(String key, StorageCache childCache) {
             if (super.flushChild(key, childCache)) {
                 if (childCache != null) {
                     AccountState storageOwnerAcct = m_accountStateCache.get(key);
@@ -97,7 +99,8 @@ public class RepositoryRoot extends RepositoryImpl {
     	m_logger.debug("RepositoryRoot init start.");
         m_stateDS = stateDS;
         m_trieCache = new WriteCache.BytesKey<>(stateDS, WriteCache.CacheType.COUNTING);
-        m_stateTrie = new SecureTrie(m_trieCache, root);
+        //TODO
+        //m_stateTrie = new SecureTrie(m_trieCache, root);
 
         SourceCodec.BytesKey<AccountState, byte[]> accountStateCodec 
         	= new SourceCodec.BytesKey<>(m_stateTrie, Serializers.AccountStateSerializer);
@@ -107,7 +110,8 @@ public class RepositoryRoot extends RepositoryImpl {
         MultiCache<StorageCache> storageCache = new MultiStorageCache();
         // counting as there can be 2 contracts with the same code, 1 can suicide
         Source<byte[], byte[]> codeCache = new WriteCache.BytesKey<>(stateDS, WriteCache.CacheType.COUNTING);
-        init(accountStateCache, codeCache, storageCache);
+        //TODO
+        //init(accountStateCache, codeCache, storageCache);
     	m_logger.debug("RepositoryRoot init end.");
     }
 
@@ -129,9 +133,12 @@ public class RepositoryRoot extends RepositoryImpl {
      * @param root
      * @return
      */
-    protected TrieImpl createTrie(CachedSource.BytesKey<byte[]> trieCache, byte[] root) {
+    protected TrieImpl createTrie(CachedSource.BytesKey<String> trieCache, byte[] root) {
     	m_logger.debug("createTrie start. root:" + Hex.toHexString(root));
-        return new SecureTrie(trieCache, root);
+
+        //TODO
+    	//return new SecureTrie(trieCache, root);
+    	return null;
     }
 
     /**
